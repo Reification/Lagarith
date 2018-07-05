@@ -30,15 +30,8 @@
 bool DetectFlags(){
 	int CPUInfo[4];
 	__cpuid(CPUInfo,1);
-	//SSE3 = (CPUInfo[2]&(1<< 0))!=0;
 	SSSE3= (CPUInfo[2]&(1<< 9))!=0;
-#ifndef X64_BUILD
-	SSE  = (CPUInfo[3]&(1<<25))!=0;
-	SSE2 = (CPUInfo[3]&(1<<26))!=0;
-	return (CPUInfo[3]&(1<<23))!=0;
-#else
 	return true;
-#endif	
 }
 
 CodecInst::CodecInst(){
@@ -56,7 +49,6 @@ CodecInst::CodecInst(){
 	length=0;
 	nullframes=false;
 	use_alpha=false;
-	lossy_option=0;
 	started=0;
 	cObj.buffer=NULL;
 	multithreading=0;
@@ -68,12 +60,6 @@ CodecInst::CodecInst(){
 
 HMODULE hmoduleLagarith=0;
 
-BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD, LPVOID) {
-	hmoduleLagarith = (HMODULE) hinstDLL;
-	return TRUE;
-}
-
-
 char *mode_options[]={"RGBA","RGB (Default)","YUY2","YV12"};
 
 HWND CreateTooltip(HWND hwnd){
@@ -83,12 +69,8 @@ HWND CreateTooltip(HWND hwnd){
     iccex.dwSize	= sizeof(INITCOMMONCONTROLSEX);
     InitCommonControlsEx(&iccex);
 
-#ifdef X64_BUILD
 	HINSTANCE	ghThisInstance=(HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-#else 
-	HINSTANCE	ghThisInstance=(HINSTANCE)GetWindowLong(hwnd, GWL_HINSTANCE);
-#endif
-    HWND		hwndTT;					// handle to the tooltip control
+  HWND		hwndTT;					// handle to the tooltip control
 
     // create a tooltip window
 	hwndTT = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
@@ -102,53 +84,6 @@ HWND CreateTooltip(HWND hwnd){
 	SendMessage(hwndTT, TTM_SETDELAYTIME, (WPARAM)(DWORD)TTDT_AUTOPOP, (LPARAM)30*1000);
 
 	return hwndTT;
-}
-
-struct { UINT item; UINT tip; } item2tip[] = {
-	{ IDC_NULLFRAMES,	IDS_TIP_NULLFRAMES	},
-	{ IDC_SUGGEST,		IDS_TIP_SUGGEST		},
-	{ IDC_MULTI,		IDS_TIP_MULTI		}, 
-	{ IDC_LOSSY_OPTIONS,IDS_TIP_LOSSY_OPTION},
-	{ IDC_NOUPSAMPLE,	IDS_TIP_NOUPSAMPLE},
-	{ 0,0 }
-};
-
-int AddTooltip(HWND tooltip, HWND client, UINT stringid){
-
-#ifdef X64_BUILD
-	HINSTANCE ghThisInstance=(HINSTANCE)GetWindowLongPtr(client,GWLP_HINSTANCE);
-#else
-	HINSTANCE ghThisInstance=(HINSTANCE)GetWindowLong(client, GWL_HINSTANCE);
-#endif
-
-	TOOLINFO				ti;			// struct specifying info about tool in tooltip control
-    static unsigned int		uid	= 0;	// for ti initialization
-	RECT					rect;		// for client area coordinates
-	TCHAR					buf[2000];	// a static buffer is sufficent, TTM_ADDTOOL seems to copy it
-
-	// load the string manually, passing the id directly to TTM_ADDTOOL truncates the message :(
-	if ( !LoadString(ghThisInstance, stringid, buf, 2000) ) return -1;
-
-	// get coordinates of the main client area
-	GetClientRect(client, &rect);
-	
-    // initialize members of the toolinfo structure
-	ti.cbSize		= sizeof(TOOLINFO);
-	ti.uFlags		= TTF_SUBCLASS;
-	ti.hwnd			= client;
-	ti.hinst		= ghThisInstance;		// not necessary if lpszText is not a resource id
-	ti.uId			= uid;
-	ti.lpszText		= buf;
-
-	// Tooltip control will cover the whole window
-	ti.rect.left	= rect.left;    
-	ti.rect.top		= rect.top;
-	ti.rect.right	= rect.right;
-	ti.rect.bottom	= rect.bottom;
-	
-	// send a addtool message to the tooltip control window
-	SendMessage(tooltip, TTM_ADDTOOL, 0, (LPARAM) (LPTOOLINFO) &ti);	
-	return uid++;
 }
 
 void StoreRegistrySettings(bool nullframes, bool suggestrgb, bool multithread, bool noupsample, int mode ){
@@ -229,66 +164,9 @@ void LoadRegistrySettings(bool * nullframes, bool * suggestrgb, bool * multithre
 	}
 }
 
-static BOOL CALLBACK ConfigureDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-	if (uMsg == WM_INITDIALOG) {
-
-		bool suggestrgb=false;
-		bool noupsample=false;
-		bool nullframes=false;
-		bool multithread=false;
-		int mode=1;
-		LoadRegistrySettings(&nullframes,&suggestrgb,&multithread,&noupsample,&mode);
-
-		HWND hwndItem = GetDlgItem(hwndDlg, IDC_LOSSY_OPTIONS);
-		for(int i=0; i<4; i++)
-			SendMessage(hwndItem, CB_ADDSTRING, 0, (LPARAM)mode_options[i]);
-		CheckDlgButton(hwndDlg, IDC_NULLFRAMES,nullframes);
-		CheckDlgButton(hwndDlg, IDC_SUGGEST,suggestrgb);
-		CheckDlgButton(hwndDlg, IDC_MULTI,multithread);
-		CheckDlgButton(hwndDlg, IDC_NOUPSAMPLE, noupsample);
-		HWND suggest = GetDlgItem(hwndDlg, IDC_SUGGEST);
-		Button_Enable(suggest,!noupsample);
-		SendMessage(hwndItem, CB_SETCURSEL, mode, 1);
-		HWND hwndTip = CreateTooltip(hwndDlg);
-		for (int l=0; item2tip[l].item; l++ )
-			AddTooltip(hwndTip, GetDlgItem(hwndDlg, item2tip[l].item),	item2tip[l].tip);
-		SendMessage(hwndTip, TTM_SETMAXTIPWIDTH, 0, (LPARAM)(INT)350);
-	} else if (uMsg == WM_COMMAND) {
-		HWND suggest = GetDlgItem(hwndDlg, IDC_SUGGEST);
-		Button_Enable(suggest,IsDlgButtonChecked(hwndDlg, IDC_NOUPSAMPLE) != BST_CHECKED);
-		if (LOWORD(wParam)==IDC_OK){
-
-			bool suggestrgb=(IsDlgButtonChecked(hwndDlg, IDC_SUGGEST) == BST_CHECKED);
-			bool noupsample=(IsDlgButtonChecked(hwndDlg, IDC_NOUPSAMPLE) == BST_CHECKED);
-			bool nullframes=(IsDlgButtonChecked(hwndDlg, IDC_NULLFRAMES) == BST_CHECKED);
-			bool multithread=(IsDlgButtonChecked(hwndDlg, IDC_MULTI) == BST_CHECKED);
-			int mode = (int)SendDlgItemMessage(hwndDlg, IDC_LOSSY_OPTIONS, CB_GETCURSEL, 0, 0);
-			if ( mode <0 || mode >3 )
-				mode=1;
-
-			StoreRegistrySettings(nullframes,suggestrgb,multithread,noupsample,mode);
-		
-			EndDialog(hwndDlg, 0);
-		} else if ( LOWORD(wParam)==IDC_CANCEL ){
-			EndDialog(hwndDlg, 0);
-		} else if ( LOWORD(wParam)==IDC_HOMEPAGE ){
-			ShellExecute(NULL, "open", "http://lags.leetcode.net/codec.html", NULL, NULL, SW_SHOW);
-		}
-	} else if ( uMsg == WM_CLOSE ){
-		EndDialog(hwndDlg, 0);
-	}
-	return 0;
-}
-
 BOOL CodecInst::QueryConfigure() {
 	return TRUE; 
 }
-
-DWORD CodecInst::Configure(HWND hwnd) {
-	DialogBox(hmoduleLagarith, MAKEINTRESOURCE(IDD_DIALOG1), hwnd, (DLGPROC)ConfigureDialogProc);
-	return ICERR_OK;
-}
-
 
 CodecInst* Open(ICOPEN* icinfo) {
 	if (icinfo && icinfo->fccType != ICTYPE_VIDEO)
@@ -354,15 +232,6 @@ DWORD CodecInst::CompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpb
 		if ( lpbiIn->biBitCount != 24 && lpbiIn->biBitCount != 32){
 			return_badformat()
 		}
-	} else if ( lpbiIn->biCompression == FOURCC_YUY2 || lpbiIn->biCompression == FOURCC_UYVY || lpbiIn->biCompression == FOURCC_YV16 ){
-		if ( lpbiIn->biBitCount != 16 ) {
-			return_badformat()
-		}
-	} else if ( lpbiIn->biCompression == FOURCC_YV12 ){
-		if ( lpbiIn->biBitCount != 12 ) {
-			return_badformat()
-		}
-
 	} else {
 		/*char msg[128];
 		int x = lpbiIn->biCompression;
@@ -372,29 +241,26 @@ DWORD CodecInst::CompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpb
 		return_badformat()
 	}
 
-	LoadRegistrySettings(&nullframes,NULL,&multithreading,NULL,&lossy_option);
+  int mode = 0;
+	LoadRegistrySettings(&nullframes,NULL,&multithreading,NULL,&mode);
 
-	use_alpha = (lossy_option==0);
-	if ( lossy_option ){
-		lossy_option--;
-		if ( lossy_option == 1 && lpbiIn->biBitCount <= 16 ){
-			lossy_option=0;
+	use_alpha = (mode==0);
+	if ( mode ){
+		mode--;
+		if ( mode == 1 && lpbiIn->biBitCount <= 16 ){
+      mode = 0;
 		} else if ( lpbiIn->biBitCount == 12 ){
-			lossy_option=0;
-		}
-
-		if ( lossy_option == 2 && (lpbiIn->biCompression == FOURCC_UYVY || lpbiIn->biCompression == FOURCC_YV16) ){ // down sampling routines only accept YUV2
-			return_badformat()
+      mode = 0;
 		}
 	}
 
 	// Make sure width is mod 4 for YUV formats
-	if ( (lpbiIn->biBitCount < 24 || lossy_option > 0) && lpbiIn->biWidth%4 ){
+	if ( (lpbiIn->biBitCount < 24 || mode > 0) && lpbiIn->biWidth%4 ){
 		return_badformat()
 	}
 
 	// Make sure the height is acceptable for YV12 formats
-	if ( lossy_option > 1 || lpbiIn->biBitCount < 16 ){
+	if ( mode > 1 || lpbiIn->biBitCount < 16 ){
 		if ( lpbiIn->biHeight % 2 ){
 			return_badformat();
 		}
@@ -416,9 +282,9 @@ DWORD CodecInst::CompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpb
 			return_badformat()
 		if ( use_alpha && lpbiIn->biBitCount == 32 && lpbiIn->biBitCount != lpbiOut->biBitCount )
 			return_badformat()
-		if ( !lossy_option && lpbiIn->biBitCount < lpbiOut->biBitCount && !(lpbiIn->biBitCount == 32 && lpbiOut->biBitCount == 24 ) )
+		if ( !mode && lpbiIn->biBitCount < lpbiOut->biBitCount && !(lpbiIn->biBitCount == 32 && lpbiOut->biBitCount == 24 ) )
 			return_badformat()
-		if ( lossy_option==1 && lpbiOut->biBitCount < 16 )
+		if ( mode==1 && lpbiOut->biBitCount < 16 )
 			return_badformat()
 
 	}
@@ -442,19 +308,16 @@ DWORD CodecInst::CompressGetFormat(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER
 		return_badformat()
 	}
 
-	LoadRegistrySettings(&nullframes,NULL,&multithreading,NULL,&lossy_option);
+  int mode = 0;
+	LoadRegistrySettings(&nullframes,NULL,&multithreading,NULL,&mode);
 
-	if ( lossy_option ){
-		lossy_option--;
+	if ( mode ){
+		mode--;
 
-		if ( lossy_option == 1 && lpbiIn->biBitCount <= 16 ){
-			lossy_option=0;
+		if ( mode == 1 && lpbiIn->biBitCount <= 16 ){
+			mode=0;
 		} else if ( lpbiIn->biBitCount == 12 ){
-			lossy_option=0;
-		}
-
-		if ( lossy_option >= 2 && (lpbiIn->biCompression == FOURCC_UYVY || lpbiIn->biCompression == FOURCC_YV16 )){ // down sampling routines only accept YUV2
-			return_badformat()
+			mode=0;
 		}
 	}
 
@@ -470,7 +333,7 @@ DWORD CodecInst::CompressGetFormat(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER
 	}
 	lpbiOut->biBitCount = lpbiIn->biBitCount;
 
-	*(UINT32*)(&lpbiOut[1])=lossy_option;
+	*(UINT32*)(&lpbiOut[1])=mode;
 	return (DWORD)ICERR_OK;
 }
 
@@ -535,18 +398,13 @@ DWORD CodecInst::DecompressQuery(const LPBITMAPINFOHEADER lpbiIn, const LPBITMAP
 			lossy=0;
 		}
 	}
-	lossy_option=lossy;
+  unsigned int mode = lossy; (void)mode;
 
 	//char msg[128];
 	//char fcc[4];
 	//*(unsigned int*)(&fcc[0])=lpbiOut->biCompression;
 	//sprintf(msg,"Format = %d, BiComp= %c%c%c%c",lpbiOut->biBitCount,fcc[3],fcc[2],fcc[1],fcc[0] );
 	//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
-
-	// make sure the output format is one that can be decoded to
-	if ( lpbiOut->biCompression != 0 && lpbiOut->biCompression != FOURCC_YV12 && lpbiOut->biCompression != FOURCC_YUY2 ){
-		return_badformat();
-	}
 
 	// make sure the output bitdepth is valid
 	if ( lpbiOut->biBitCount != 32 && lpbiOut->biBitCount != 24 && lpbiOut->biBitCount != 16 && lpbiOut->biBitCount != 12 ){
@@ -605,13 +463,6 @@ DWORD CodecInst::DecompressQuery(const LPBITMAPINFOHEADER lpbiIn, const LPBITMAP
 	if ( lpbiOut->biCompression == 0 && lpbiOut->biBitCount != 24 && lpbiOut->biBitCount != 32){
 			return_badformat();
 	}
-	if ( lpbiOut->biCompression == FOURCC_YUY2 && lpbiOut->biBitCount != 16 ){
-			return_badformat();
-	}
-	if ( lpbiOut->biCompression == FOURCC_YV12 && lpbiOut->biBitCount != 12 ){
-			return_badformat();
-	}
-
 	if ( lpbiIn->biHeight != lpbiOut->biHeight )
 		return_badformat();
 	if ( lpbiIn->biWidth != lpbiOut->biWidth )
@@ -642,7 +493,7 @@ DWORD CodecInst::DecompressGetFormat(const LPBITMAPINFOHEADER lpbiIn, LPBITMAPIN
 		if ( lossy == 3)
 			lossy=2;
 	}
-	lossy_option=lossy;
+  unsigned int mode = lossy; (void)mode;
 
 	*lpbiOut = *lpbiIn;
 	lpbiOut->biSize = sizeof(BITMAPINFOHEADER);
@@ -653,18 +504,6 @@ DWORD CodecInst::DecompressGetFormat(const LPBITMAPINFOHEADER lpbiIn, LPBITMAPIN
 		lpbiOut->biBitCount = 32;
 		lpbiOut->biSizeImage = lpbiIn->biWidth * lpbiIn->biHeight * 4;
 		lpbiOut->biCompression = 0;
-
-	// suggest YUY2 if source is YUY2
-	} else if ( lpbiIn->biBitCount == 16 || lossy == 1) {
-		lpbiOut->biBitCount=16;
-		lpbiOut->biCompression = FOURCC_YUY2;
-		lpbiOut->biSizeImage = lpbiIn->biWidth * lpbiIn->biHeight * 2;
-
-	// suggest YV12 if source is YV12
-	} else if ( lpbiIn->biBitCount == 12 || lossy == 2){
-		lpbiOut->biBitCount=12;
-		lpbiOut->biCompression = FOURCC_YV12;
-		lpbiOut->biSizeImage = lpbiIn->biWidth * lpbiIn->biHeight + lpbiIn->biWidth * lpbiIn->biHeight/2;
 	} else {
 		return_badformat();
 	}
@@ -674,6 +513,134 @@ DWORD CodecInst::DecompressGetFormat(const LPBITMAPINFOHEADER lpbiIn, LPBITMAPIN
 
 DWORD CodecInst::DecompressGetPalette(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut) {
 	return_badformat()
+}
+
+// DLL MAIN NOT USED - this is just to verify completeness of code!
+__declspec(dllexport) 
+BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
+{
+  hmoduleLagarith = (HMODULE)hinstDLL;
+
+  DWORD_PTR dwDriverID = 0;
+  HDRVR hDriver = nullptr;
+  UINT uiMessage = 0;
+  LPARAM lParam1 = 0;
+  LPARAM lParam2 = 0;
+
+  CodecInst* pi = (CodecInst*)dwDriverID;
+  switch ( uiMessage )
+  {
+  case DRV_LOAD:
+    return (LRESULT)1L;
+
+  case DRV_FREE:
+    return (LRESULT)1L;
+
+  case DRV_OPEN:
+    return (BOOL)(LRESULT)Open( (ICOPEN*)lParam2 );
+
+  case DRV_CLOSE:
+    if ( pi ) Close( pi );
+    return (LRESULT)1L;
+
+    /*********************************************************************
+
+    state messages
+
+    *********************************************************************/
+
+    // cwk
+  case DRV_QUERYCONFIGURE:    // configuration from drivers applet
+    return (LRESULT)1L;
+
+  case ICM_ABOUT:
+    return ICERR_UNSUPPORTED;
+
+  case ICM_GETSTATE:
+    return pi->GetState( (LPVOID)lParam1, (DWORD)lParam2 );
+
+  case ICM_SETSTATE:
+    return pi->SetState( (LPVOID)lParam1, (DWORD)lParam2 );
+
+  case ICM_GETINFO:
+    return pi->GetInfo( (ICINFO*)lParam1, (DWORD)lParam2 );
+
+  case ICM_GETDEFAULTQUALITY:
+    if ( lParam1 )
+    {
+      *((LPDWORD)lParam1) = 10000;
+      return ICERR_OK;
+    }
+    break;
+
+    /*********************************************************************
+
+    compression messages
+
+    *********************************************************************/
+
+  case ICM_COMPRESS_QUERY:
+    return pi->CompressQuery( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_COMPRESS_BEGIN:
+    return pi->CompressBegin( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_COMPRESS_GET_FORMAT:
+    return pi->CompressGetFormat( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_COMPRESS_GET_SIZE:
+    return pi->CompressGetSize( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_COMPRESS:
+    return pi->Compress( (ICCOMPRESS*)lParam1, (DWORD)lParam2 );
+
+  case ICM_COMPRESS_END:
+    return pi->CompressEnd();
+
+    /*********************************************************************
+
+    decompress messages
+
+    *********************************************************************/
+
+  case ICM_DECOMPRESS_QUERY:
+
+    return pi->DecompressQuery( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_DECOMPRESS_BEGIN:
+    return  pi->DecompressBegin( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_DECOMPRESS_GET_FORMAT:
+    return pi->DecompressGetFormat( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_DECOMPRESS_GET_PALETTE:
+    return pi->DecompressGetPalette( (LPBITMAPINFOHEADER)lParam1, (LPBITMAPINFOHEADER)lParam2 );
+
+  case ICM_DECOMPRESS:
+    return pi->Decompress( (ICDECOMPRESS*)lParam1, (DWORD)lParam2 );
+
+  case ICM_DECOMPRESS_END:
+    return pi->DecompressEnd();
+
+    /*********************************************************************
+
+    standard driver messages
+
+    *********************************************************************/
+
+  case DRV_DISABLE:
+  case DRV_ENABLE:
+    return (LRESULT)1L;
+
+  case DRV_INSTALL:
+  case DRV_REMOVE:
+    return (LRESULT)DRV_OK;
+  }
+
+  if ( uiMessage < DRV_USER )
+    return (BOOL)DefDriverProc( dwDriverID, hDriver, uiMessage, lParam1, lParam2 );
+  return ICERR_UNSUPPORTED;
+
 }
 
 //MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);

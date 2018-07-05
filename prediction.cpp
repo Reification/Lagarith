@@ -27,11 +27,12 @@
 #include <assert.h>
 #include <windows.h>
 #include <stdio.h>
+#include <stdint.h>
 
 bool SSSE3;
 
 // Round x up to the next multiple of y if it is not a multiple. Y must be a power of 2.
-#define align_round(x,y) ((((unsigned int)(x))+(y-1))&(~(y-1)))
+#define align_round(x,y) ((((uintptr_t)(x))+(y-1))&(~(y-1)))
 
 // this effectively performs a bubble sort to select the median:
 // min(max(min(x,y),z),max(x,y))
@@ -49,32 +50,16 @@ inline int median(int x,int y,int z ) {
 	return  x+delta;	// min
 }
 
-#ifndef X64_BUILD
-unsigned __int64 GetTime(){
-	unsigned __int64 tsc=0;
-	__asm{
-		lea		ebx,tsc
-		rdtsc
-		mov		[ebx],eax
-		mov		[ebx+4],edx
-
-	}
-	return tsc;
-}
-
-#include "prediction_x86.cpp"
-#endif
-
 void Block_Predict_SSE2( const unsigned char * __restrict source, unsigned char * __restrict dest, const unsigned int width, const unsigned int length, const bool rgbmode){
 
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
 	// 4.9
 
-	unsigned int align_shift = (16 - ((unsigned int)source&15))&15;
+	uintptr_t align_shift = (16 - ((uintptr_t)source&15))&15;
 
 	// predict the bottom row
-	unsigned int a;
+	uintptr_t a;
 	__m128i t0 = _mm_setzero_si128();
 	if ( align_shift ){
 		dest[0]=source[0];
@@ -148,7 +133,7 @@ void Block_Predict_SSE2( const unsigned char * __restrict source, unsigned char 
 	x = _mm_cvtsi32_si128(source[a-1]);
 	z = _mm_cvtsi32_si128(source[a-width-1]);
 
-	const unsigned int end = (length>=15)?length-15:0;
+	const uintptr_t end = (length>=15)?length-15:0;
 
 	// if width is a multiple of 16, use faster aligned reads
 	// inside the prediction loop
@@ -247,10 +232,10 @@ void Block_Predict_SSE2( const unsigned char * __restrict source, unsigned char 
 
 void Block_Predict_YUV16_SSE2( const unsigned char * __restrict source, unsigned char * __restrict dest, const unsigned int width, const unsigned int length, const bool is_y){
 
-	unsigned int align_shift = (16 - ((int)source&15))&15;
+	uintptr_t align_shift = (16 - ((uintptr_t)source&15))&15;
 
 	// predict the bottom row
-	unsigned int a;
+	uintptr_t a;
 	__m128i t0 = _mm_setzero_si128();
 	if ( align_shift ){
 		dest[0]=source[0];
@@ -306,7 +291,7 @@ void Block_Predict_YUV16_SSE2( const unsigned char * __restrict source, unsigned
 	z = _mm_cvtsi32_si128(source[a-width-1]);
 
 
-	const unsigned int end = length&(~15);
+	const uintptr_t end = length&(~15);
 	// if width is a multiple of 16, use faster aligned reads
 	// inside the prediction loop
 	if ( width%16 == 0 ){
@@ -385,16 +370,16 @@ void Decorrilate_And_Split_RGB24_SSE2(const unsigned char * __restrict in, unsig
 	//static HANDLE file = NULL;
 	//t1 = GetTime();
 
-	const unsigned int stride = align_round(width*3,4);
+	const uintptr_t stride = align_round(width*3,4);
 	if ( SSSE3 ){
 		// 10
-		const unsigned int vsteps = (width&7)?height:1;
-		const unsigned int wsteps = (width&7)?(width&(~7)):width*height;
+		const uintptr_t vsteps = (width&7)?height:1;
+		const uintptr_t wsteps = (width&7)?(width&(~7)):width*height;
 
 		const __m128i shuffle = _mm_setr_epi8(0,3,6,9, 2,5,8,11, 1,4,7,10, -1,-1,-1,-1); // bbbb rrrr gggg 0000
 		//__asm int 3;
-		for ( unsigned int y=0; y<vsteps; y++){
-			unsigned int x;
+		for ( uintptr_t y=0; y<vsteps; y++){
+			uintptr_t x;
 			for ( x=0; x<wsteps; x+=8){
 				__m128i s0 = _mm_lddqu_si128((__m128i*)&in[y*stride+x*3+0]);
 				__m128i s1 = _mm_loadl_epi64((__m128i*)&in[y*stride+x*3+16]);
@@ -421,12 +406,12 @@ void Decorrilate_And_Split_RGB24_SSE2(const unsigned char * __restrict in, unsig
 	} else {
 		// 25
 		// 23
-		const unsigned int vsteps = (width&3)?height:1;
-		const unsigned int wsteps = (width&3)?(width&(~3)):width*height;
+		const uintptr_t vsteps = (width&3)?height:1;
+		const uintptr_t wsteps = (width&3)?(width&(~3)):width*height;
 
 		__m128i mask = _mm_set1_epi16(255);
-		for ( unsigned int y=0; y<vsteps; y++){
-			unsigned int x;
+		for ( uintptr_t y=0; y<vsteps; y++){
+			uintptr_t x;
 			for ( x=0; x<wsteps; x+=4){
 				__m128i x0 = _mm_loadl_epi64((__m128i*)&in[y*stride+x*3+0]);
 				__m128i x1 = _mm_srli_si128(x0,3);
@@ -483,8 +468,8 @@ void Decorrilate_And_Split_RGB32_SSE2(const unsigned char * __restrict in, unsig
 	// 13
 	// 12
 
-	unsigned int a=0;
-	unsigned int align = (unsigned int)in;
+	uintptr_t a=0;
+	uintptr_t align = (uintptr_t)in;
 	align &= 15;
 	align /=4;
 
@@ -494,7 +479,7 @@ void Decorrilate_And_Split_RGB32_SSE2(const unsigned char * __restrict in, unsig
 		rdst[a] = in[a*4+2]-in[a*4+1];
 	}
 
-	const unsigned int end = (width*height-align)&(~7);
+	const uintptr_t end = (width*height-align)&(~7);
 	const __m128i mask = _mm_set1_epi16(255);
 	for ( ; a<end; a+=8){
 		
@@ -555,8 +540,8 @@ void Decorrilate_And_Split_RGBA_SSE2(const unsigned char * __restrict in, unsign
 
 	const __m128i mask = _mm_set1_epi16(255);
 	
-	unsigned int a=0;
-	unsigned int align = (unsigned int)in;
+	uintptr_t a=0;
+  uintptr_t align = (uintptr_t)in;
 	align &= 15;
 	align /= 4;
 
@@ -567,7 +552,7 @@ void Decorrilate_And_Split_RGBA_SSE2(const unsigned char * __restrict in, unsign
 		adst[a] = in[a*4+3];
 	}
 
-	const unsigned int end = (width*height-align)&(~7);
+	const uintptr_t end = (width*height-align)&(~7);
 	for ( ; a<end; a+=8){
 		
 		__m128i x0 = *(__m128i*)&in[a*4+0];
@@ -632,8 +617,8 @@ void Split_YUY2_SSE2(const unsigned char * __restrict src, unsigned char * __res
 
 	// 5.8
 
-	unsigned int a=0;
-	unsigned int align = (unsigned int)src;
+	uintptr_t a=0;
+	uintptr_t align = (uintptr_t)src;
 	align &= 15;
 	align /= 4;
 
@@ -644,7 +629,7 @@ void Split_YUY2_SSE2(const unsigned char * __restrict src, unsigned char * __res
 		udst[a/2] = src[a*2+3];
 	}
 
-	const unsigned int end = (width*height-align)&(~15);
+	const uintptr_t end = (width*height-align)&(~15);
 	for ( ;a<end;a+=16){
 		__m128i y0 = *(__m128i*)&src[a*2+0];
 		__m128i y1 = *(__m128i*)&src[a*2+16];
@@ -691,8 +676,8 @@ void Split_YUY2_SSE2(const unsigned char * __restrict src, unsigned char * __res
 void Split_UYVY_SSE2(const unsigned char * __restrict src, unsigned char * __restrict ydst, unsigned char * __restrict udst, unsigned char * __restrict vdst, const unsigned int width, const unsigned int height){
 	
 
-	unsigned int a=0;
-	unsigned int align = (unsigned int)src;
+	uintptr_t a=0;
+	uintptr_t align = (uintptr_t)src;
 	align &= 15;
 	align /= 4;
 
@@ -704,7 +689,7 @@ void Split_UYVY_SSE2(const unsigned char * __restrict src, unsigned char * __res
 	}
 
 	const __m128i cmask = _mm_set_epi32(0x000000FF,0x000000FF,0x000000FF,0x000000FF);
-	const unsigned int end = (width*height-align)&(~15);
+	const uintptr_t end = (width*height-align)&(~15);
 	for ( ;a<end;a+=16){
 		__m128i u0 = *(__m128i*)&src[a*2+0];
 		__m128i u1 = *(__m128i*)&src[a*2+16];
@@ -747,7 +732,7 @@ void Interleave_And_Restore_YUY2_SSE2( unsigned char * __restrict output, const 
 		output[2]=y=ysrc[1];
 		output[3]=v=vsrc[0];
 
-		for ( unsigned int a=1;a<width/2+2;a++){
+		for ( uintptr_t a=1;a<width/2+2;a++){
 			output[a*4+0]=y+=ysrc[a*2+0];
 			output[a*4+1]=u+=usrc[a];
 			output[a*4+2]=y+=ysrc[a*2+1];
@@ -768,8 +753,8 @@ void Interleave_And_Restore_YUY2_SSE2( unsigned char * __restrict output, const 
 	//static HANDLE file = CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
 	//t1 = GetTime();
 
-	const unsigned int stride = width*2;
-	unsigned int a=width/2+2;
+	const uintptr_t stride = width*2;
+	uintptr_t a=width/2+2;
 
 	// make sure output[a*4-stride] is aligned
 	for( ;(a*4-stride)&15;a++ ){
@@ -799,7 +784,7 @@ void Interleave_And_Restore_YUY2_SSE2( unsigned char * __restrict output, const 
 		__m128i z = _mm_setr_epi8(output[a*4-3-stride],output[a*4-2-stride],output[a*4-1-stride],0,0,0,0,0,0,0,0,0,0,0,0,0);
 		const int ymask=255;
 		const int cmask=~255;
-		unsigned int ending = ((height*width)/2-3);
+		uintptr_t ending = ((height*width)/2-3);
 
 		// restore the majority of the pixles using SSE2 median prediction
 		for ( ; a<ending; a+=4){
@@ -944,14 +929,14 @@ void Interleave_And_Restore_YUY2_SSE2( unsigned char * __restrict output, const 
 
 void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned int width, const unsigned int height){
 
-	const unsigned int stride = align_round(width*3,4);
+	const uintptr_t stride = align_round(width*3,4);
 
 	// restore the bottom row
 	{
 		int r=0;
 		int g=0;
 		int b=0;
-		for ( unsigned int a=0;a<width;a++){
+		for ( uintptr_t a=0;a<width;a++){
 			output[a*3]=b+=bsrc[a];
 			output[a*3+1]=g+=gsrc[a];
 			output[a*3+2]=r+=rsrc[a];
@@ -971,19 +956,19 @@ void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const
 	__m128i z = _mm_setzero_si128();
 	__m128i x = _mm_setzero_si128();
 
-	unsigned int w=0;
-	unsigned int h=0;
+	uintptr_t w=0;
+	uintptr_t h=0;
 
 	const __m128i mask = _mm_setr_epi8(0,-1,0,0,-1,0,0,-1,0,0,-1,0,0,0,0,0);
 
 	// if there is no need for padding, treat it as one long row
-	const unsigned int vsteps = (width&3)?height:2;
-	const unsigned int wsteps = (width&3)?(width&(~3)):(width*height-width-4);
+	const uintptr_t vsteps = (width&3)?height:2;
+	const uintptr_t wsteps = (width&3)?(width&(~3)):(width*height-width-4);
 
 	for ( h=1;h<vsteps;h++){
 		w=0;
 		for ( ;w<wsteps;w+=4){
-			unsigned int a = stride*h+w*3;
+			uintptr_t a = stride*h+w*3;
 			__m128i b = _mm_cvtsi32_si128( *(unsigned int *)&bsrc[width*h+w] );
 			__m128i g = _mm_cvtsi32_si128( *(unsigned int *)&gsrc[width*h+w] );
 			__m128i r = _mm_cvtsi32_si128( *(unsigned int *)&rsrc[width*h+w] );
@@ -1077,7 +1062,7 @@ void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const
 			// if the width is not mod 4, take care of the remaining pixels in the row
 			for ( ;w<width;w++){
 			
-				unsigned int a = stride*h+w*3;
+				uintptr_t a = stride*h+w*3;
 
 				__m128i src = _mm_cvtsi32_si128(bsrc[width*h+w]+(gsrc[width*h+w]<<8)+(rsrc[width*h+w]<<16));
 				src = _mm_unpacklo_epi8(src,_mm_setzero_si128());
@@ -1108,7 +1093,7 @@ void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const
 	w %= width;
 	// take care of any remaining pixels
 	for ( ;w<width;w++){	
-		unsigned int a = stride*h+w*3;
+		uintptr_t a = stride*h+w*3;
 
 		__m128i src = _mm_cvtsi32_si128(bsrc[width*h+w]+(gsrc[width*h+w]<<8)+(rsrc[width*h+w]<<16));
 		src = _mm_unpacklo_epi8(src,_mm_setzero_si128());
@@ -1135,8 +1120,8 @@ void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const
 		z = y;
 	}
 
-	for ( unsigned int a=stride*(height-1);a<stride*height;a+=3){
-	//for ( unsigned int a=0;a<stride*height;a+=3){
+	for ( uintptr_t a=stride*(height-1);a<stride*height;a+=3){
+	//for ( uintptr_t a=0;a<stride*height;a+=3){
 		output[a]+=output[a+1];
 		output[a+2]+=output[a+1];
 	}
@@ -1157,12 +1142,12 @@ void Interleave_And_Restore_RGB24_SSE2( unsigned char * __restrict output, const
 
 void Interleave_And_Restore_RGB32_SSE2( unsigned char * __restrict output, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned int width, const unsigned int height){
 
-	const unsigned int stride = width*4;
+	const uintptr_t stride = width*4;
 	{
 		int r=0;
 		int g=0;
 		int b=0;
-		for ( unsigned int a=0;a<width;a++){
+		for ( uintptr_t a=0;a<width;a++){
 			output[a*4+0]=b+=bsrc[a];
 			output[a*4+1]=g+=gsrc[a];
 			output[a*4+2]=r+=rsrc[a];
@@ -1179,8 +1164,8 @@ void Interleave_And_Restore_RGB32_SSE2( unsigned char * __restrict output, const
 	__m128i z = _mm_setzero_si128();
 	__m128i x = _mm_setzero_si128();
 
-	const unsigned int end = ((width*(height-1))&(~3))+width;
-	unsigned int a=width;
+	const uintptr_t end = ((width*(height-1))&(~3))+width;
+	uintptr_t a=width;
 
 	if ( (stride&15)==0){
 		
@@ -1392,13 +1377,13 @@ void Interleave_And_Restore_RGB32_SSE2( unsigned char * __restrict output, const
 
 void Interleave_And_Restore_RGBA_SSE2( unsigned char * __restrict output, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned char * __restrict asrc, const unsigned int width, const unsigned int height){
 	
-	const unsigned int stride = width*4;
+	const uintptr_t stride = width*4;
 	{
 		int r=0;
 		int g=0;
 		int b=0;
 		int alpha=0;
-		for ( unsigned int a=0;a<width;a++){
+		for ( uintptr_t a=0;a<width;a++){
 			output[a*4+0]=b+=bsrc[a];
 			output[a*4+1]=g+=gsrc[a];
 			output[a*4+2]=r+=rsrc[a];
@@ -1412,8 +1397,8 @@ void Interleave_And_Restore_RGBA_SSE2( unsigned char * __restrict output, const 
 	__m128i z = _mm_setzero_si128();
 	__m128i x = _mm_setzero_si128();
 
-	const unsigned int end = ((width*(height-1))&(~3))+width;
-	unsigned int a=width;
+	const uintptr_t end = ((width*(height-1))&(~3))+width;
+	uintptr_t a=width;
 
 	if ( (stride&15)==0){
 		
@@ -1606,7 +1591,7 @@ void Interleave_And_Restore_RGBA_SSE2( unsigned char * __restrict output, const 
 	}
 
 	// finish recorrilating top row
-	for ( unsigned int a=stride*(height-1);a<stride*height;a+=4){
+	for ( uintptr_t a=stride*(height-1);a<stride*height;a+=4){
 		output[a]+=output[a+1];
 		output[a+2]+=output[a+1];
 	}
@@ -1874,8 +1859,8 @@ void Restore_YV12_SSE2(unsigned char * __restrict ysrc, unsigned char * __restri
 
 void Double_Resolution(const unsigned char * src, unsigned char * dst, unsigned char * buffer, unsigned int width, unsigned int height ){
 
-	for ( unsigned int y=0;y<height;y++){
-		unsigned int x=0;
+	for ( uintptr_t y=0;y<height;y++){
+		uintptr_t x=0;
 		for ( ;x<width-1;x++){
 			dst[y*2*width*2+x*2]=src[y*width+x];
 			dst[y*2*width*2+x*2+1]=(src[y*width+x]+src[y*width+x+1]+1)/2;
@@ -1883,8 +1868,8 @@ void Double_Resolution(const unsigned char * src, unsigned char * dst, unsigned 
 		dst[y*2*width*2+x*2]=src[y*width+x];
 		dst[y*2*width*2+x*2+1]=src[y*width+x];
 	}
-	for ( unsigned int y=0;y<height*2-2;y+=2){
-		for ( unsigned int x=0;x<width*2;x++){
+	for ( uintptr_t y=0;y<height*2-2;y+=2){
+		for ( uintptr_t x=0;x<width*2;x++){
 			dst[y*width*2+x+width*2]=(dst[y*width*2+x]+dst[y*width*2+x+width*4]+1)/2;
 		}
 	}
@@ -1892,14 +1877,14 @@ void Double_Resolution(const unsigned char * src, unsigned char * dst, unsigned 
 }
 
 void Interleave_And_Restore_Old_Unaligned(unsigned char * bsrc, unsigned char * gsrc, unsigned char * rsrc, unsigned char * dst, unsigned char * buffer, bool rgb24, unsigned int width, unsigned int height){
-	const unsigned int stride = align_round(width*3,4);
+	const uintptr_t stride = align_round(width*3,4);
 	unsigned char * output = (rgb24)?dst:buffer;
 
 	output[0]=bsrc[0];
 	output[1]=gsrc[0];
 	output[2]=rsrc[0];
 
-	for ( unsigned int a=1;a<width;a++){
+	for ( uintptr_t a=1;a<width;a++){
 		output[a*3+0]=bsrc[a]+output[a*3-3];
 		output[a*3+1]=gsrc[a]+output[a*3-2];
 		output[a*3+2]=rsrc[a]+output[a*3-1];
@@ -1909,7 +1894,7 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char * bsrc, unsigned char * 
 	output[width*3+1]=gsrc[width]+output[1];
 	output[width*3+2]=rsrc[width]+output[2];
 
-	for ( unsigned int a=width+1;a<width*height;a++){
+	for ( uintptr_t a=width+1;a<width*height;a++){
 		int x = output[a*3-3];
 		int y = output[a*3-width*3];
 		int z = x+y-output[a*3-width*3-3];
@@ -1926,15 +1911,15 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char * bsrc, unsigned char * 
 		output[a*3+2]=rsrc[a]+median(x,y,z);
 	}
 
-	for ( unsigned int a=0;a<width*height*3;a+=3){
+	for ( uintptr_t a=0;a<width*height*3;a+=3){
 		output[a+0]+=output[a+1];
 		output[a+2]+=output[a+1];
 	}
 
 	memcpy(output+width*height*3,output+width*height*3-stride,height*stride-width*height*3);
 	if ( !rgb24 ){
-		for ( unsigned int y=0;y<height;y++){
-			for ( unsigned int x=0;x<width;x++){
+		for ( uintptr_t y=0;y<height;y++){
+			for ( uintptr_t x=0;x<width;x++){
 				dst[y*width*4+x*4+0]=buffer[y*stride+x*3+0];
 				dst[y*width*4+x*4+1]=buffer[y*stride+x*3+1];
 				dst[y*width*4+x*4+2]=buffer[y*stride+x*3+2];
@@ -1943,179 +1928,6 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char * bsrc, unsigned char * 
 		}
 	}
 }
-
-#ifndef X64_BUILD
-
-// Some processors have better performance with MMX/SSE than with SSE2.
-// This macro selects the faster of the SSE/SSE2 versions of functions.
-// The first 10 frames of a video are used as timing runs (the data of the
-// frames won't affect the speed), with 5 frames run under each version of
-// the function. The total number of CPU cycles used for each run is counted,
-// and the minimum of the times are compared to judge the relative
-// performance. The minimum is used since it should best filter out noise
-// (from task switches, paging, etc.) in such a small sample. 
-#define Select_Fastest(function_a,function_b){\
-	int count = performance->count;\
-	if ( count >= 10 ){\
-		if ( performance->prefere_a ){\
-			function_a;\
-		} else {\
-			function_b;\
-		}\
-	} else {\
-		if ( count&1 ){\
-			unsigned __int64 t1 = GetTime();\
-			function_a;\
-			t1 = GetTime()-t1;\
-			if ( performance->time_a > t1){\
-				performance->time_a = t1;\
-			}\
-		} else {\
-			unsigned __int64 t1 = GetTime();\
-			function_b;\
-			t1 = GetTime()-t1;\
-			if ( performance->time_b > t1){\
-				performance->time_b = t1;\
-			}\
-		}\
-		count++;\
-		performance->count=count;\
-		if ( count==10){\
-			performance->prefere_a = performance->time_a<=performance->time_b;\
-			/*char msg[128];\
-			//sprintf_s(msg,sizeof(msg),"Prefere %s (ratio = %f)",performance->prefere_a?"SSE2":"MMX",((double)performance->time_a)/performance->time_b);\
-			//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);*/ \
-		}\
-	}\
-}
-
-void Block_Predict( const unsigned char * __restrict source, unsigned char * __restrict dest, const unsigned int width, const unsigned int length, const bool rgbmode){
-	if ( SSE2 ){
-		Block_Predict_SSE2(source,dest,width,length,rgbmode);
-	} else {
-		Block_Predict_MMX(source,dest,width,length,rgbmode);
-	}
-}
-
-void Block_Predict_YUV16( const unsigned char * __restrict source, unsigned char * __restrict dest, const unsigned int width, const unsigned int length, const bool is_y){
-	if ( SSE2 ){	
-		Block_Predict_YUV16_SSE2(source,dest,width,length,is_y);
-	} else {
-		Block_Predict_YUV16_MMX(source,dest,width,length,is_y);
-	}
-}
-
-void Decorrilate_And_Split_RGB24( const unsigned char * __restrict in, unsigned char * __restrict rdst, unsigned char * __restrict gdst, unsigned char * __restrict bdst, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Decorrilate_And_Split_RGB24_SSE2(in,rdst,gdst,bdst,width,height),
-			Decorrilate_And_Split_RGB24_MMX(in,rdst,gdst,bdst,width,height)
-		);
-	} else {
-		Decorrilate_And_Split_RGB24_MMX(in,rdst,gdst,bdst,width,height);
-	}
-}
-
-void Decorrilate_And_Split_RGB32( const unsigned char * __restrict in, unsigned char * __restrict rdst, unsigned char * __restrict gdst, unsigned char * __restrict bdst, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Decorrilate_And_Split_RGB32_SSE2(in,rdst,gdst,bdst,width,height),
-			Decorrilate_And_Split_RGB32_MMX(in,rdst,gdst,bdst,width,height)
-		);
-	} else {
-		Decorrilate_And_Split_RGB32_MMX(in,rdst,gdst,bdst,width,height);
-	}
-}
-
-void Decorrilate_And_Split_RGBA( const unsigned char * __restrict in, unsigned char * __restrict rdst, unsigned char * __restrict gdst, unsigned char * __restrict bdst, unsigned char * __restrict adst, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Decorrilate_And_Split_RGBA_SSE2(in,rdst,gdst,bdst,adst,width,height),
-			Decorrilate_And_Split_RGBA_MMX(in,rdst,gdst,bdst,adst,width,height)
-		);
-	} else {
-		Decorrilate_And_Split_RGBA_MMX(in,rdst,gdst,bdst,adst,width,height);
-	}
-}
-
-void Split_YUY2( const unsigned char * __restrict src, unsigned char * __restrict ydst, unsigned char * __restrict udst, unsigned char * __restrict vdst, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Split_YUY2_SSE2(src,ydst,udst,vdst,width,height),
-			Split_YUY2_MMX(src,ydst,udst,vdst,width,height)
-		);
-	} else {
-		Split_YUY2_MMX(src,ydst,udst,vdst,width,height);
-	}
-}
-
-void Split_UYVY( const unsigned char * __restrict src, unsigned char * __restrict ydst, unsigned char * __restrict udst, unsigned char * __restrict vdst, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Split_UYVY_SSE2(src,ydst,udst,vdst,width,height),
-			Split_UYVY_MMX(src,ydst,udst,vdst,width,height)
-		);
-	} else {
-		Split_UYVY_MMX(src,ydst,udst,vdst,width,height);
-	}
-}
-
-void Interleave_And_Restore_RGB24( unsigned char * __restrict out, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Interleave_And_Restore_RGB24_SSE2(out,rsrc,gsrc,bsrc,width,height),
-			Interleave_And_Restore_RGB24_MMX(out,rsrc,gsrc,bsrc,width,height)
-		);
-	} else {
-		Interleave_And_Restore_RGB24_MMX(out,rsrc,gsrc,bsrc,width,height);
-	}
-}
-
-void Interleave_And_Restore_RGB32( unsigned char * __restrict out, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 && ((unsigned int)out&15)==0 ){
-		Select_Fastest(
-			Interleave_And_Restore_RGB32_SSE2(out,rsrc,gsrc,bsrc,width,height),
-			Interleave_And_Restore_RGB32_MMX(out,rsrc,gsrc,bsrc,width,height)
-		);
-	} else {
-		Interleave_And_Restore_RGB32_MMX(out,rsrc,gsrc,bsrc,width,height);
-	}
-}
-
-void Interleave_And_Restore_RGBA( unsigned char * __restrict out, const unsigned char * __restrict rsrc, const unsigned char * __restrict gsrc, const unsigned char * __restrict bsrc, const unsigned char * __restrict asrc, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 && ((unsigned int)out&15)==0){
-		Select_Fastest(
-			Interleave_And_Restore_RGBA_SSE2(out,rsrc,gsrc,bsrc,asrc,width,height),
-			Interleave_And_Restore_RGBA_MMX(out,rsrc,gsrc,bsrc,asrc,width,height)
-		);
-	} else {
-		Interleave_And_Restore_RGBA_MMX(out,rsrc,gsrc,bsrc,asrc,width,height);
-	}
-}
-
-void Interleave_And_Restore_YUY2( unsigned char * __restrict out, const unsigned char * __restrict ysrc, const unsigned char * __restrict usrc, const unsigned char * __restrict vsrc, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Interleave_And_Restore_YUY2_SSE2(out,ysrc,usrc,vsrc,width,height),
-			Interleave_And_Restore_YUY2_MMX(out,ysrc,usrc,vsrc,width,height)
-		);
-	} else {
-		Interleave_And_Restore_YUY2_MMX(out,ysrc,usrc,vsrc,width,height);
-	}
-}
-
-void Restore_YV12( unsigned char * __restrict ysrc, unsigned char * __restrict usrc, unsigned char * __restrict vsrc, const unsigned int width, const unsigned int height, Performance * performance){
-	if ( SSE2 ){
-		Select_Fastest(
-			Restore_YV12_SSE2(ysrc,usrc,vsrc,width,height),
-			Restore_YV12_MMX(ysrc,usrc,vsrc,width,height)
-		);
-	} else {
-		Restore_YV12_MMX(ysrc,usrc,vsrc,width,height);
-	}
-}
-
-#else // x64 build
 
 void Block_Predict( const unsigned char * __restrict source, unsigned char * __restrict dest, const unsigned int width, const unsigned int length, const bool rgbmode){
 	Block_Predict_SSE2(source,dest,width,length,rgbmode);
@@ -2164,6 +1976,3 @@ void Interleave_And_Restore_YUY2( unsigned char * __restrict out, const unsigned
 void Restore_YV12( unsigned char * __restrict ysrc, unsigned char * __restrict usrc, unsigned char * __restrict vsrc, const unsigned int width, const unsigned int height, Performance * performance){
 	Restore_YV12_SSE2(ysrc,usrc,vsrc,width,height);
 }
-#endif
-
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);

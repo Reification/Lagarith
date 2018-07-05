@@ -20,13 +20,7 @@
 #include "interface.h"
 #include "prediction.h"
 #include "threading.h"
-#include "convert.h"
-#include "convert_yv12.h"
 #include <float.h>
-#ifndef X64_BUILD
-#include "huffyuv_a.h"
-#include "convert_xvid.cpp"
-#endif
 
 // initalize the codec for decompression
 DWORD CodecInst::DecompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut){
@@ -155,17 +149,7 @@ void CodecInst::ArithRGBDecompress(){
 	unsigned char * gdst = buffer+pixels;
 	unsigned char * rdst = buffer+pixels*2;
 
-	if ( in[0] != OBSOLETE_ARITH ){
-		Decode3Channels(bdst, pixels, gdst, pixels, rdst, pixels);
-	} else {
-		const unsigned char * bsrc = in + 9;
-		const unsigned char * gsrc = in + *(UINT32*)(in+1);
-		const unsigned char * rsrc = in + *(UINT32*)(in+5);
-
-		ObsoleteUncompact(bsrc,bdst,pixels,buffer2);
-		ObsoleteUncompact(gsrc,gdst,pixels,buffer2);
-		ObsoleteUncompact(rsrc,rdst,pixels,buffer2);
-	}
+	Decode3Channels(bdst, pixels, gdst, pixels, rdst, pixels);
 
 	if ( (width&3)==0 || in[0] == UNALIGNED_RGB24 ){
 		if ( format == RGB24 ){
@@ -291,160 +275,6 @@ void CodecInst::ArithRGBADecompress(){
 	}
 }
 
-// Decompress a YUY2 keyframe
-void CodecInst::ArithYUY2Decompress(){
-	unsigned char * dst = out;
-	unsigned char * dst2 = buffer;
-	if ( format == YUY2 ){
-		dst = buffer;
-		dst2= out;
-	}
-
-	const unsigned int pixels = width*height;
-
-	unsigned char *ydst = dst;
-	unsigned char *udst = ydst+pixels;
-	unsigned char *vdst = udst+pixels/2;
-
-	Decode3Channels(ydst, pixels, udst, pixels/2, vdst, pixels/2);
-
-	// special case: RLE detected a solid Y value (compressed size = 2),
-	// need to set 2nd Y value for restoration to work right
-	if ( *(UINT32*)(in+1) == 11){ 
-		dst[1]=dst[0];
-	}
-	Interleave_And_Restore_YUY2(dst2,ydst,udst,vdst,width,height,&performance);
-
-#ifndef X64_BUILD
-	if ( format != YUY2 ){
-		if ( format == RGB24 ){
-			mmx_YUY2toRGB24(buffer,out,buffer+width*height*2,width*2);
-		} else {
-			mmx_YUY2toRGB32(buffer,out,buffer+width*height*2,width*2);
-		} 
-	}
-#else
-	if ( format != YUY2 ){
-		if ( format == RGB24 ){
-			mmx_YUY2toRGB24(buffer,out,buffer+width*height*2,width*2,width*2,0);
-		} else {
-			mmx_YUY2toRGB32(buffer,out,buffer+width*height*2,width*2,width*2,0);
-		} 
-	}
-#endif
- 
-}
-
-// Decompress a YV12 keyframe
-void CodecInst::ArithYV12Decompress(){
-
-	unsigned char * dst = out;
-	unsigned char * dst2 = buffer;
-	if ( format == YUY2 ){
-		dst = buffer;
-		dst2 = out;
-	}
-
-	const unsigned int pixels = width*height;
-	unsigned char * ydst = dst;
-	unsigned char * udst = ydst + pixels;
-	unsigned char * vdst = udst + pixels/4;
-
-	Decode3Channels(ydst, pixels, udst, pixels/4, vdst, pixels/4);
-
-	Restore_YV12(ydst,udst,vdst,width,height,&performance);
-
-	if ( format == YV12 )
-		return;
-
-	//upsample if needed
-#ifndef X64_BUILD
-	if ( SSE2 ){
-		isse_yv12_to_yuy2(dst,dst+width*height+width*height/4,dst+width*height,width,width,width/2,dst2,width*2,height);
-	} else {
-		mmx_yv12_to_yuy2(dst,dst+width*height+width*height/4,dst+width*height,width,width,width/2,dst2,width*2,height);
-	}
-#else
-	isse_yv12_to_yuy2(dst,dst+width*height+width*height/4,dst+width*height,width,width,width/2,dst2,width*2,height);
-#endif
-
-	if ( format == YUY2 )
-		return;
-
-	// upsample to RGB
-#ifndef X64_BUILD
-	if ( format == RGB32 ){
-		mmx_YUY2toRGB32(dst2,out,dst2+width*height*2,width*2);
-	} else {
-		mmx_YUY2toRGB24(dst2,out,dst2+width*height*2,width*2);
-	}
-#else
-	if ( format == RGB32 ){
-		mmx_YUY2toRGB32(dst2,out,dst2+width*height*2,width*2,width*2,1);
-	} else {
-		mmx_YUY2toRGB24(dst2,out,dst2+width*height*2,width*2,width*2,1);
-	}
-#endif
-}
-
-void CodecInst::ReduceResDecompress(){
-
-	width/=2;
-	height/=2;
-
-	unsigned char * dest = (format==YV12)?buffer:out;
-
-	const unsigned int pixels = width*height;
-	unsigned char * ydst = dest;
-	unsigned char * udst = ydst + pixels;
-	unsigned char * vdst = udst + pixels/4;
-
-	Decode3Channels(ydst, pixels, udst, pixels/4, vdst, pixels/4);
-
-	Restore_YV12(ydst,udst,vdst,width,height,&performance);
-
-	width*=2;
-	height*=2;
-
-	dest=(format==YV12)?out:buffer;
-
-	unsigned char * ysrc = ydst;
-	unsigned char * usrc = udst;
-	unsigned char * vsrc = vdst;
-	ydst = dest;
-	udst = ydst+width*height;
-	vdst = udst+width*height/4;
-
-	Double_Resolution(ysrc,ydst,buffer2,width/2,height/2);
-	Double_Resolution(usrc,udst,buffer2,width/4,height/4);
-	Double_Resolution(vsrc,vdst,buffer2,width/4,height/4);
-
-	ysrc = ydst;
-	usrc = udst;
-	vsrc = vdst;
-
-#ifdef X64_BUILD
-	if ( format == RGB24) {
-		isse_yv12_to_yuy2(ysrc,vsrc,usrc,width,width,width/2,buffer2,width*2,height);
-		mmx_YUY2toRGB24(buffer2,out,buffer2+width*height*2,width*2,width*2,1);
-	} else if ( format == RGB32 ) {
-		isse_yv12_to_yuy2(ysrc,vsrc,usrc,width,width,width/2,buffer2,width*2,height);
-		mmx_YUY2toRGB32(buffer2,out,buffer2+width*height*2,width*2,width*2,1);
-	} else if ( format == YUY2 ) {
-		isse_yv12_to_yuy2(ysrc,vsrc,usrc,width,width,width/2,out,width*2,height);
-	}
-#else
-	if ( format == RGB24) {
-		yv12_to_rgb24_mmx(out,width,ysrc,vsrc,usrc,width,width/2,width,-(int)height);
-	} else if ( format == RGB32 ) {
-		yv12_to_rgb32_mmx(out,width,ysrc,vsrc,usrc,width,width/2,width,-(int)height);
-	} else if ( format == YUY2 ) {
-		yv12_to_yuyv_mmx(out,width,ysrc,vsrc,usrc,width,width/2,width,height);
-	}
-#endif
-
-}
-
 // Called to decompress a frame, the actual decompression will be
 // handed off to other functions based on the frame type.
 DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
@@ -529,15 +359,6 @@ DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
 #endif
 	}
 
-	/*interlaced=(in[0]&INTERLACED_FLAG)>0;
-	if ( interlaced ){
-		//char msg[]="Interlaced frame detected\n";
-		//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
-		width*=2;
-		height/=2;
-	}*/
-
-
 	switch ( in[0] ){
 	case ARITH_RGB24:
 		ArithRGBDecompress();
@@ -545,22 +366,9 @@ DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
 	case ARITH_ALPHA:
 		ArithRGBADecompress();
 		break;
-	case ARITH_YUY2:
-		ArithYUY2Decompress();
-		break;
-	case OBSOLETE_ARITH:
-		ArithRGBDecompress();
-		break;
-	case ARITH_YV12:
-		ArithYV12Decompress();
-		break;
 	case UNALIGNED_RGB24:
 		ArithRGBDecompress();
 		break;
-	case REDUCED_RES:
-		ReduceResDecompress();
-		break;
-
 	// redundant check just in case size is incorrect
 	case BYTEFRAME:
 	case PIXELFRAME:

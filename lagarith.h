@@ -29,17 +29,10 @@
 #include <assert.h>
 #include "prediction.h"
 
-#ifndef X64_BUILD
-extern bool SSE;
-extern bool	SSE2;
-#endif
-//extern bool SSE3;
 extern bool	SSSE3;
 
 unsigned __int64 GetTime();
 
-
-//#define X64_BUILD // this will be set automaticly if using the release 64 configuration
 
 //#define LOSSLESS_CHECK			// enables decompressing encoded frames and comparing to original
 
@@ -90,38 +83,32 @@ inline void * lag_aligned_malloc( void *ptr, int size, int align, char *str ) {
 // y must be 2^n
 #define align_round(x,y) ((((unsigned int)(x))+(y-1))&(~(y-1)))
 
-#include "resource.h"
+//#include "resource.h"
 #include "compact.h"
 
 static const DWORD FOURCC_LAGS = mmioFOURCC('L','A','G','S');
-static const DWORD FOURCC_YUY2 = mmioFOURCC('Y','U','Y','2');
-static const DWORD FOURCC_UYVY = mmioFOURCC('U','Y','V','Y');
-static const DWORD FOURCC_YV16 = mmioFOURCC('Y','V','1','6');
-static const DWORD FOURCC_YV12 = mmioFOURCC('Y','V','1','2');
+//static const DWORD FOURCC_YUY2 = mmioFOURCC('Y','U','Y','2');
+//static const DWORD FOURCC_UYVY = mmioFOURCC('U','Y','V','Y');
+//static const DWORD FOURCC_YV16 = mmioFOURCC('Y','V','1','6');
+//static const DWORD FOURCC_YV12 = mmioFOURCC('Y','V','1','2');
 
 
 // possible frame flags
 
 #define UNCOMPRESSED		1	// Used for debugging
 #define UNALIGNED_RGB24		2	// RGB24 keyframe with a width that is not a multiple of 4; this has to be handled 
-								// differently due to the fact that previously, the codec did not remove byte padding to 
-								// align each scan line. Old versions are decoded as ARITH_RGB24
-#define ARITH_YUY2			3	// Standard YUY2 keyframe frame
+								            // differently due to the fact that previously, the codec did not remove byte padding to 
+								            // align each scan line. Old versions are decoded as ARITH_RGB24
 #define ARITH_RGB24			4	// Standard RGB24 keyframe frame
 #define BYTEFRAME			5	// solid greyscale color frame
 #define PIXELFRAME			6	// solid non-greyscale color frame
-#define OBSOLETE_ARITH		7	// Old RGB keyframe frame, decode support only
 #define ARITH_ALPHA			8	// Standard RGBA keyframe frame
 #define PIXELFRAME_ALPHA	9	// RGBA pixel frame
-#define ARITH_YV12			10	// Standard YV12 frame	
-#define REDUCED_RES         11	// Reduced Resolution frame, decode support only
 
 
 // possible colorspaces
 #define RGB24	24
 #define RGB32	32
-#define YUY2	16
-#define YV12	12
 
 struct ThreadData {
 	volatile const unsigned char * source;
@@ -155,7 +142,6 @@ public:
 	
 	bool nullframes;
 	bool use_alpha;
-	int lossy_option;
 	bool multithreading;
 	CompressClass cObj;
 	unsigned int compressed_size;
@@ -168,7 +154,6 @@ public:
 
 	DWORD GetState(LPVOID pv, DWORD dwSize);
 	DWORD SetState(LPVOID pv, DWORD dwSize);
-	DWORD Configure(HWND hwnd);
 	DWORD GetInfo(ICINFO* icinfo, DWORD dwSize);
 
 	DWORD CompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
@@ -193,9 +178,6 @@ public:
 
 	int CompressRGB24(ICCOMPRESS* icinfo);
 	int CompressRGBA(ICCOMPRESS* icinfo);
-	int CompressYUV16(ICCOMPRESS* icinfo);
-	int CompressYV12(ICCOMPRESS* icinfo);
-	int CompressLossy(ICCOMPRESS* icinfo);
 	unsigned int HandleTwoCompressionThreads(unsigned int chan_size);
 	unsigned int HandleThreeCompressionThreads(unsigned int chan_size);
 
@@ -204,10 +186,7 @@ public:
 	void Decode3Channels(unsigned char * dst1, unsigned int len1, unsigned char * dst2, unsigned int len2, unsigned char * dst3, unsigned int len3);
 	void ArithRGBDecompress();
 	void ArithRGBADecompress();
-	void ArithYUY2Decompress();
-	void ArithYV12Decompress();
 	void UnalignedDecompress();
-	void ReduceResDecompress();
 };
 
 CodecInst* Open(ICOPEN* icinfo);

@@ -18,6 +18,7 @@
 #include "lagarith.h"
 #include "prediction.h"
 #include <float.h>
+#include <stdint.h>
 
 DWORD WINAPI encode_worker_thread( LPVOID i ){
 
@@ -44,13 +45,9 @@ DWORD WINAPI encode_worker_thread( LPVOID i ){
 
 			unsigned char * src = (unsigned char *)threaddata->source;
 			unsigned char * dest = (unsigned char *)threaddata->dest;
-			unsigned char * dst = buffer + ((unsigned int)src&15);
+			unsigned char * dst = buffer + ((uintptr_t)src&15);
 
-			if ( format == YUY2 ){
-				Block_Predict_YUV16(src,dst,width,length,false);
-			} else {
-				Block_Predict(src,dst,width,length,(format!=YV12));
-			}
+			Block_Predict(src,dst,width,length, /*rgbmode=*/true);
 
 			threaddata->size=threaddata->cObj.Compact(dst,dest,length);
 			assert( *(__int64*)dest != 0 );
@@ -110,31 +107,14 @@ int CodecInst::InitThreads( int encode ){
 	threads[2].DoneEvent=CreateEvent(NULL,false,false,NULL);
 
 	unsigned int use_format=format;
-	if ( lossy_option ){
-		if ( lossy_option==1 ){
-			use_format=YUY2;
-		} else {
-			use_format=YV12;
-		}
-	}
 
-	if ( use_format > YUY2 ){
-		threads[0].width=width;
-		threads[1].width=width;
-	} else {
-		threads[0].width=width/2;
-		threads[1].width=width/2;
-	}
+	threads[0].width=width;
+	threads[1].width=width;
 	threads[2].width=width;
 
 	
-	if ( use_format != YV12 ){
-		threads[0].height=height;
-		threads[1].height=height;
-	} else {
-		threads[0].height=height/2;
-		threads[1].height=height/2;
-	}
+	threads[0].height=height;
+	threads[1].height=height;
 	threads[2].height=height;
 
 	threads[0].format=use_format;
@@ -159,7 +139,7 @@ int CodecInst::InitThreads( int encode ){
 		}
 	}
 	if ( !memerror ){
-		if ( lossy_option==0 && format == RGB32 ){
+		if ( format == RGB32 ){
 			if ( encode ){
 				if ( !threads[2].cObj.InitCompressBuffers( buffer_size )) {
 					memerror = true;

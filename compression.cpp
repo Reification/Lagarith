@@ -15,19 +15,13 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+#include <stdint.h>
 #include "interface.h"
 #include "lagarith.h"
 #include "prediction.h"
 #include "threading.h"
 #include <float.h>
 #include "convert_lagarith.h"
-
-#ifndef X64_BUILD
-#include "convert_yuy2.cpp"
-#include "convert_yv12.cpp"
-#else
-#include "convert.h"
-#endif
 
 // initalize the codec for compression
 DWORD CodecInst::CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut){
@@ -416,211 +410,6 @@ int CodecInst::CompressRGBA(ICCOMPRESS* icinfo){
 	return ICERR_OK;
 }
 
-// Compress a 4:2:2 YUV frame, input can be YUY2, UYVY, or YV16
-int CodecInst::CompressYUV16(ICCOMPRESS* icinfo){
-
-	const unsigned int pixels	= width*height;
-	unsigned char * ysrc		= prev;
-	unsigned char * usrc		= ysrc+align_round(pixels+16,16);
-	unsigned char * vsrc		= usrc+align_round(pixels/2+32,16);
-	unsigned char * ydest		= buffer2;
-	unsigned char * udest		= ydest+align_round(pixels+16,16);
-	unsigned char * vdest		= udest+align_round(pixels/2+32,16);
-
-	const unsigned char * y;
-	const unsigned char * u;
-	const unsigned char * v;
-
-	if ( icinfo->lpbiInput->biCompression == FOURCC_YV16 ){
-		y = in;
-		v = in+pixels;
-		u = in+pixels+pixels/2;
-
-		ydest += ((int)y)&15;
-		udest += ((int)u)&15;
-		vdest += ((int)v)&15;
-	} else if ( lossy_option ){
-		y = in;
-		u = in + align_round(width*height+16,16);
-		v = in + align_round(width*height*3/2+32,16);
-	} else {
-		if ( icinfo->lpbiInput->biCompression == FOURCC_YUY2  ){
-			Split_YUY2(in,ysrc,usrc,vsrc,width,height,&performance);
-		} else {
-			Split_UYVY(in,ysrc,usrc,vsrc,width,height,&performance);
-		}
-		y = ysrc;
-		u = usrc;
-		v = vsrc;
-	}
-
-	int size;
-	if ( !multithreading ){
-
-		Block_Predict_YUV16(y,ydest,width,pixels,true);
-		Block_Predict_YUV16(u,udest,width/2,pixels/2,false);
-		Block_Predict_YUV16(v,vdest,width/2,pixels/2,false);
-
-		size = 9;
-		size += cObj.Compact(ydest,out+size,pixels);
-		*(UINT32*)(out+1)=size;
-		size += cObj.Compact(udest,out+size,pixels/2);
-		*(UINT32*)(out+5)=size;
-		size += cObj.Compact(vdest,out+size,pixels/2);
-	} else {
-
-		unsigned char * ucomp = buffer;
-		unsigned char * vcomp = buffer+align_round(pixels+64,16);
-
-		threads[0].source=u;
-		threads[0].dest=ucomp;
-		threads[0].length=pixels/2;
-		SetEvent(threads[0].StartEvent);
-		threads[1].source=v;
-		threads[1].dest=vcomp;
-		threads[1].length=pixels/2;
-		SetEvent(threads[1].StartEvent);
-
-		Block_Predict_YUV16(y,ydest,width,pixels,true);
-
-		unsigned int y_size = cObj.Compact(ydest,out+9,pixels);
-		size = HandleTwoCompressionThreads(y_size);
-	}
-	out[0] = ARITH_YUY2;
-	icinfo->lpbiOutput->biSizeImage = size;
-	//assert( *(__int64*)(out+9) != 0 );
-	assert( *(__int64*)(out+*(UINT32*)(out+1)) != 0 );
-	assert( *(__int64*)(out+*(UINT32*)(out+5)) != 0 );
-	return ICERR_OK;
-}
-
-int CodecInst::CompressYV12(ICCOMPRESS* icinfo){
-
-	const unsigned int pixels	= width*height;
-
-	const unsigned char * ysrc = in;
-	const unsigned char * vsrc = in+pixels;
-	const unsigned char * usrc = in+pixels+pixels/4;
-	if ( lossy_option ){
-		usrc = ysrc + align_round(width*height+16,16);
-		vsrc = ysrc + align_round(width*height*3/2+32,16);
-	}
-
-
-	int size;
-	if ( !multithreading ){
-
-		unsigned char * ydest = buffer;
-		unsigned char * vdest = buffer + align_round(pixels+32,16);
-		unsigned char * udest = buffer + align_round(pixels+pixels/4+64,16);
-		ydest += (unsigned int)ysrc&15;
-		vdest += (unsigned int)vsrc&15;
-		udest += (unsigned int)usrc&15;
-
-		// perform prediction
-		Block_Predict(ysrc,ydest,width,pixels,false);
-		Block_Predict(vsrc,vdest,width/2,pixels/4,false);
-		Block_Predict(usrc,udest,width/2,pixels/4,false);
-
-		size = 9;
-		size+=cObj.Compact(ydest,out+size,pixels);
-		*(UINT32*)(out+1)=size;
-		size+=cObj.Compact(vdest,out+size,pixels/4);
-		*(UINT32*)(out+5)=size;
-		size+=cObj.Compact(udest,out+size,pixels/4);
-	} else {
-
-		unsigned char * ucomp = buffer2;
-		unsigned char * vcomp = buffer2+align_round(pixels/2+64,16);
-
-		threads[0].source=vsrc;
-		threads[0].dest=vcomp;
-		threads[0].length=pixels/4;
-		SetEvent(threads[0].StartEvent);
-		threads[1].source=usrc;
-		threads[1].dest=ucomp;
-		threads[1].length=pixels/4;
-		SetEvent(threads[1].StartEvent);
-
-		unsigned char * ydest = buffer;
-		ydest += (unsigned int)ysrc&15;
-
-		Block_Predict(ysrc,ydest,width,pixels,false);
-
-		unsigned int y_size = cObj.Compact(ydest,out+9,pixels);
-		size = HandleTwoCompressionThreads(y_size);
-	}
-	out[0] = ARITH_YV12;
-	icinfo->lpbiOutput->biSizeImage = size;
-	return ICERR_OK;
-}
-
-// This downsamples the colorspace if the set encoding colorspace is lower than the
-// colorspace of the input video
-int CodecInst::CompressLossy(ICCOMPRESS * icinfo ){
-
-	unsigned char * lossy_buffer=prev;
-
-	const unsigned char * const stored_in=in;
-
-	// separate channels slightly so packed writes cannot overwright following channel
-	unsigned int upos = align_round(width*height+16,16);
-	unsigned int vpos = align_round(width*height*3/2+32,16);
-
-#ifndef X64_BUILD
-	if ( SSE2 ){
-#endif
-		if ( lossy_option == 2 ){
-			if ( format == RGB24 ){
-				ConvertRGB24toYV12_SSE2(in,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,height);
-			} else if ( format == RGB32 ){
-				ConvertRGB32toYV12_SSE2(in,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,height);
-			} else {
-				isse_yuy2_to_yv12(in,width*2,width*2,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,width/2,height);
-			}
-		} else {
-			if ( format == RGB24 ){
-				ConvertRGB24toYV16_SSE2(in,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,height);
-			} else {
-				ConvertRGB32toYV16_SSE2(in,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,height);
-			}
-		}
-#ifndef X64_BUILD
-	} else {
-		if ( lossy_option == 2 ){
-			if ( format == RGB24 ){
-				mmx_ConvertRGB24toYUY2(in,buffer,width*3,width*2,width,height);
-			} else if ( format == RGB32 ){
-				mmx_ConvertRGB32toYUY2(in,buffer,width*4,width*2,width,height);
-			}
-			const unsigned char * src = (format>=RGB24)?buffer:in;
-			if ( SSE ){
-				isse_yuy2_to_yv12(src,width*2,width*2,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,width/2,height);
-			} else {
-				mmx_yuy2_to_yv12(src,width*2,width*2,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,width/2,height);
-			}
-		} else {
-			if ( format == RGB24 ){
-				mmx_ConvertRGB24toYUY2(in,buffer,width*3,width*2,width,height);
-			} else if ( format == RGB32 ){
-				mmx_ConvertRGB32toYUY2(in,buffer,width*4,width*2,width,height);
-			}
-			Split_YUY2(buffer,lossy_buffer,lossy_buffer+upos,lossy_buffer+vpos,width,height,&performance);
-		}
-	}
-#endif
-	in=lossy_buffer;
-
-	DWORD ret_val;
-	if ( lossy_option == 2 ){
-		ret_val = CompressYV12(icinfo);
-	} else {
-		ret_val = CompressYUV16(icinfo);
-	}
-	in=stored_in;
-	return ret_val;
-}
-
 // called to compress a frame; the actual compression will be
 // handed off to other functions depending on the color space and settings
 
@@ -666,34 +455,8 @@ DWORD CodecInst::Compress(ICCOMPRESS* icinfo, DWORD dwSize) {
 	
 	int ret_val;
 
-	if ( lossy_option ){
-		ret_val = CompressLossy(icinfo);
-	} else if ( format == RGB24 || ( format == RGB32 && !use_alpha) ){
+	if ( format == RGB24 || ( format == RGB32 && !use_alpha) ){
 		ret_val = CompressRGB24(icinfo);
-
-	/*
-	{
-		unsigned char * compare = (unsigned char *)malloc(width*height*4+1024);
-		const unsigned char * const holdin = in;
-		unsigned char * holdout = out;
-		in = out;
-		out = compare;
-		ArithDecompress();
-		for ( int a=0;a<width*height*format/8;a++){
-			if ( holdin[a] != compare[a] ){
-				__asm int 3;
-			}
-		}
-
-		free(compare);
-		in = holdin;
-		out = holdout;
-	}*/
-
-	} else if ( format == YUY2 ){
-		ret_val = CompressYUV16(icinfo);
-	} else if ( format == YV12 ){
-		ret_val = CompressYV12(icinfo);
 	} else {
 		ret_val = CompressRGBA(icinfo);
 	}

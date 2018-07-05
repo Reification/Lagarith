@@ -30,10 +30,6 @@
 #include <xmmintrin.h>
 #include <tmmintrin.h>
 
-#ifndef X64_BUILD
-extern bool SSE;
-extern bool SSE2;
-#endif
 //extern bool SSSE3;
 
 
@@ -44,7 +40,7 @@ void TestAndRLE_MMX(unsigned char * const __restrict in, unsigned char ** const 
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
 // distribution, improving compression.
-static const unsigned char dist_match[]={ 0,0,0,-1,1,-2,2,-3,3,-4,4,-5,5,-6,6,-7,7,-8,8,-9,9,
+static const char dist_match[]={ 0,0,0,-1,1,-2,2,-3,3,-4,4,-5,5,-6,6,-7,7,-8,8,-9,9,
 	-10,10,-11,11,-12,12,-13,13,-14,14,-15,15,-16,16,-17,17,-18,18,-19,19,-20,20,
 	-21,21,-22,22,-23,23,-24,24,-25,25,-26,26,-27,27,-28,28,-29,29,-30,30,-31,31,
 	-32,32,-33,33,-34,34,-35,35,-36,36,-37,37,-38,38,-39,39,-40,40,-41,41,-42,42,
@@ -93,7 +89,7 @@ void Encode_Long_Run( unsigned char ** l1, unsigned char ** l3, unsigned int cou
 		lvl1+=2;
 	}
 	lvl1[0]=0;
-	lvl1[1]=dist_match[x+1];
+	lvl1[1]=(unsigned char)dist_match[x+1];
 	lvl1+=2;
 
 	while (count>258){
@@ -115,7 +111,7 @@ void Encode_Long_Run( unsigned char ** l1, unsigned char ** l3, unsigned int cou
 		lvl3[0]=0;
 		lvl3[1]=0;
 		lvl3[2]=0;
-		lvl3[3]=dist_match[count-1];
+		lvl3[3]=(unsigned char)dist_match[count-1];
 		lvl3+=4;
 	}
 	l1[0]=lvl1;
@@ -150,17 +146,7 @@ unsigned int TestAndRLE(unsigned char * const __restrict in, unsigned char * con
 
 	unsigned int a=0;
 
-#ifndef X64_BUILD
-	if ( SSE2 ){
-		TestAndRLE_SSE2(in,&lvl1, &lvl3, length);
-	} else if( SSE ){
-		TestAndRLE_SSE(in,&lvl1, &lvl3, length);
-	} else {
-		TestAndRLE_MMX(in,&lvl1, &lvl3, length);
-	}
-#else 
 	TestAndRLE_SSE2(in,&lvl1, &lvl3, length);
-#endif
 
 	/*t2 = GetTime();
 	t2 -= t1;
@@ -264,7 +250,7 @@ void TestAndRLE_SSE2(unsigned char * const __restrict in, unsigned char ** const
 			lvl3[0]=0;
 			lvl3[1]=0;
 			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
+			lvl3[3]=(unsigned char)dist_match[count-1];
 			lvl3+=4;
 		} else {
 			// encode the run of zeros
@@ -280,7 +266,7 @@ void TestAndRLE_SSE2(unsigned char * const __restrict in, unsigned char ** const
 			lvl3[0]=0;
 			lvl3[1]=0;
 			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
+			lvl3[3]=(unsigned char)dist_match[count-1];
 			lvl3+=(count>=3)?4:count;
 		}
 	}
@@ -337,7 +323,7 @@ void TestAndRLE_SSE2(unsigned char * const __restrict in, unsigned char ** const
 				lvl1+=2;
 			}
 			lvl1[0]=0;
-			lvl1[1]=dist_match[count+1];
+			lvl1[1]=(unsigned char)dist_match[count+1];
 			lvl1+=2;
 		}
 		if ( a > length){
@@ -350,290 +336,6 @@ void TestAndRLE_SSE2(unsigned char * const __restrict in, unsigned char ** const
 	*out1=lvl1;
 	*out3=lvl3;
 }
-
-#ifndef X64_BUILD
-void TestAndRLE_SSE(unsigned char * const __restrict in, unsigned char ** const __restrict out1, unsigned char ** const __restrict out3, const unsigned int length){
-	
-	//23
-	//10.6
-
-	unsigned int a=0;
-	unsigned char * lvl3=*out3;
-
-	const __m64 zero = _mm_setzero_si64();
-	// Perform RLE on the data using runs of length 1 and 3 using SSE
-	while(true){
-		
-		unsigned int step;
-		do {
-			// copy bytes until a zero run is found
-			__m64 s = *(__m64*)&in[a];
-			*(__m64*)lvl3 = s;
-			s = _mm_cmpeq_pi8(s,zero);
-			unsigned int index = _mm_movemask_pi8(s);
-			step = lvl3_lookup[index];
-			lvl3+=step;
-			a+=step;
-		} while ( step>=6 );
-		if ( a>=length){
-			break;
-		}
-
-		unsigned int count = 3;
-		a+=3;
-		do {
-			// count the number of zeros in the current run
-			__m64 s = *(__m64*)&in[a];
-			s = _mm_cmpeq_pi8(s,zero);
-			step = _mm_movemask_pi8(s);
-			step = countlookup[step+1]; // step now equals the number of sequential zeros
-			a+=step;
-			count+=step;
-		} while ( step == 8);
-
-		if ( count <= 258 ){
-			lvl3[0]=0;
-			lvl3[1]=0;
-			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
-			lvl3+=4;
-		} else {
-			// encode the run of zeros
-			while (count>258){
-				lvl3[0]=0;
-				lvl3[1]=0;
-				lvl3[2]=0;
-				lvl3[3]=dist_match_max;
-			
-				count-=258;
-				lvl3+=4;
-			}
-			lvl3[0]=0;
-			lvl3[1]=0;
-			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
-			lvl3+=(count>=3)?4:count;
-		}
-	}
-	if ( a > length){
-		lvl3--;
-	}
-
-	// if level 3 RLE is > 32% of no RLE (length), then level 1 RLE will not
-	// be used and does not need to be calculated.
-	unsigned int len = (int)(lvl3-*out3);
-	unsigned char * lvl1=*out1;
-	if ( len*100/length <= 32 ){
-		a=0;
-		if ( in[0] == 0 ){
-			goto RLE_lvl1_0_start_SSE;
-		}
-		while(true){
-			{
-				unsigned int step;
-				do {
-					// copy non-zero bytes until a zero is found
-					__m64 s = *(__m64*)&in[a];
-					*(__m64*)lvl1 = s;
-					s = _mm_cmpeq_pi8(s,zero);
-					step = _mm_movemask_pi8(s);
-					step = countlookup[step]; // step now equals the number of sequential non-zeros
-					lvl1+=step;
-					a+=step;
-				} while (step == 8);
-			}
-			if ( a>= length){
-				break;
-			}
-			RLE_lvl1_0_start_SSE:
-			unsigned int count=0;
-			{
-				unsigned int step;
-				do {
-					// count the number of zeros in the current run
-					__m64 s = *(__m64*)&in[a];
-					s = _mm_cmpeq_pi8(s,zero);
-					step = _mm_movemask_pi8(s);
-					step = countlookup[step+1]; // step now equals the number of sequential zeros
-					a+=step;
-					count+=step;
-				} while ( step == 8);
-			}
-
-			// encode the run of zeros
-			while (count>256){
-				lvl1[0]=0;
-				lvl1[1]=dist_match_max;
-				count-=256;
-				lvl1+=2;
-			}
-			lvl1[0]=0;
-			lvl1[1]=dist_match[count+1];
-			lvl1+=2;
-		}
-		if ( a > length){
-			lvl1--;
-		}
-	} else {
-		lvl1+=length;
-	}
-
-	_mm_empty();
-
-	*out1=lvl1;
-	*out3=lvl3;
-}
-
-void TestAndRLE_MMX(unsigned char * const __restrict in, unsigned char ** const __restrict out1, unsigned char ** const __restrict out3, const unsigned int length){
-	
-	//32
-	//28
-	//16
-
-	unsigned int a=0;
-	unsigned char * lvl3=*out3;
-
-	const __m64 zero = _mm_setzero_si64();
-	const __m64 mask = _mm_setr_pi8(1,2,4,8,16,32,64,-128);
-	// Perform RLE on the data using runs of length 1 and 3 using SSE
-	while(true){
-		
-		unsigned int step;
-		do {
-			// copy bytes until a zero run is found
-			__m64 s = *(__m64*)&in[a];
-			*(__m64*)lvl3 = s;
-			s = _mm_cmpeq_pi8(s,zero);
-			s = _mm_and_si64(s,mask);
-			s = _mm_or_si64(s,_mm_srli_si64(s,32));
-			s = _mm_or_si64(s,_mm_srli_pi32(s,16));
-			s = _mm_or_si64(s,_mm_srli_pi16(s,8));
-			unsigned int index = _mm_cvtsi64_si32(s)&255;
-			step = lvl3_lookup[index];
-			lvl3+=step;
-			a+=step;
-		} while ( step>=6 );
-		if ( a>=length){
-			break;
-		}
-
-		unsigned int count = 3;
-		a+=3;
-		do {
-			// count the number of zeros in the current run
-			__m64 s = *(__m64*)&in[a];
-			s = _mm_cmpeq_pi8(s,zero);
-			s = _mm_and_si64(s,mask);
-			s = _mm_or_si64(s,_mm_srli_si64(s,32));
-			s = _mm_or_si64(s,_mm_srli_pi32(s,16));
-			s = _mm_or_si64(s,_mm_srli_pi16(s,8));
-			step = _mm_cvtsi64_si32(s)&255;
-			step = countlookup[step+1]; // step now equals the number of sequential zeros
-			a+=step;
-			count+=step;
-		} while ( step == 8);
-
-		if ( count <= 258 ){
-			lvl3[0]=0;
-			lvl3[1]=0;
-			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
-			lvl3+=4;
-		} else {
-			// encode the run of zeros
-			while (count>258){
-				lvl3[0]=0;
-				lvl3[1]=0;
-				lvl3[2]=0;
-				lvl3[3]=dist_match_max;
-			
-				count-=258;
-				lvl3+=4;
-			}
-			lvl3[0]=0;
-			lvl3[1]=0;
-			lvl3[2]=0;
-			lvl3[3]=dist_match[count-1];
-			lvl3+=(count>=3)?4:count;
-		}
-	}
-	if ( a > length){
-		lvl3--;
-	}
-
-	// if level 3 RLE is > 32% of no RLE (length), then level 1 RLE will not
-	// be used and does not need to be calculated.
-	unsigned int len = (int)(lvl3-*out3);
-	unsigned char * lvl1=*out1;
-	if ( len*100/length <= 32 ){
-		a=0;
-		if ( in[0] == 0 ){
-			goto RLE_lvl1_0_start_SSE;
-		}
-		while(true){
-			{
-				unsigned int step;
-				do {
-					// copy non-zero bytes until a zero is found
-					__m64 s = *(__m64*)&in[a];
-					*(__m64*)lvl1 = s;
-					s = _mm_cmpeq_pi8(s,zero);
-					s = _mm_and_si64(s,mask);
-					s = _mm_or_si64(s,_mm_srli_si64(s,32));
-					s = _mm_or_si64(s,_mm_srli_pi32(s,16));
-					s = _mm_or_si64(s,_mm_srli_pi16(s,8));
-					step = _mm_cvtsi64_si32(s)&255;
-					step = countlookup[step]; // step now equals the number of sequential non-zeros
-					lvl1+=step;
-					a+=step;
-				} while (step == 8);
-			}
-			if ( a>= length){
-				break;
-			}
-			RLE_lvl1_0_start_SSE:
-			unsigned int count=0;
-			{
-				unsigned int step;
-				do {
-					// count the number of zeros in the current run
-					__m64 s = *(__m64*)&in[a];
-					s = _mm_cmpeq_pi8(s,zero);
-					s = _mm_and_si64(s,mask);
-					s = _mm_or_si64(s,_mm_srli_si64(s,32));
-					s = _mm_or_si64(s,_mm_srli_pi32(s,16));
-					s = _mm_or_si64(s,_mm_srli_pi16(s,8));
-					step = _mm_cvtsi64_si32(s)&255;
-					step = countlookup[step+1]; // step now equals the number of sequential zeros
-					a+=step;
-					count+=step;
-				} while ( step == 8);
-			}
-
-			// encode the run of zeros
-			while (count>256){
-				lvl1[0]=0;
-				lvl1[1]=dist_match_max;
-				count-=256;
-				lvl1+=2;
-			}
-			lvl1[0]=0;
-			lvl1[1]=dist_match[count+1];
-			lvl1+=2;
-		}
-		if ( a > length){
-			lvl1--;
-		}
-	} else {
-		lvl1+=length;
-	}
-
-	_mm_empty();
-
-	*out1=lvl1;
-	*out3=lvl3;
-}
-#endif
 
 // This undoes the modified Run Length Encoding on a byte stream.
 // The 'level' parameter tells how many 0's must be read before it
