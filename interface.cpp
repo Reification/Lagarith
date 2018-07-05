@@ -523,8 +523,8 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
 
   DWORD_PTR dwDriverID = 0;
   HDRVR hDriver = nullptr;
-  UINT uiMessage = 0;
-  LPARAM lParam1 = 0;
+  UINT uiMessage = (UINT)fdwReason;
+  LPARAM lParam1 = (LPARAM)lpvReserved;
   LPARAM lParam2 = 0;
 
   CodecInst* pi = (CodecInst*)dwDriverID;
