@@ -163,8 +163,6 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="compact.h" />
-    <ClInclude Include="convert_lagarith.h" />
-    <ClInclude Include="convert_xvid.h" />
     <ClInclude Include="interface.h" />
     <ClInclude Include="lagarith.h" />
     <ClInclude Include="prediction.h" />
@@ -172,7 +170,6 @@
   <ItemGroup>
     <ClCompile Include="compact.cpp" />
     <ClCompile Include="compression.cpp" />
-    <ClCompile Include="convert_lagarith.cpp" />
     <ClCompile Include="decompression.cpp" />
     <ClCompile Include="fibonacci.cpp" />
     <ClCompile Include="interface.cpp" />
@@ -180,9 +177,6 @@
     <ClCompile Include="range.cpp" />
     <ClCompile Include="threading.cpp" />
     <ClCompile Include="zerorle.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="amd64inc.asm" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

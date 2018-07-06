@@ -21,7 +21,6 @@
 #include "prediction.h"
 #include "threading.h"
 #include <float.h>
-#include "convert_lagarith.h"
 
 // initalize the codec for compression
 DWORD CodecInst::CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut){

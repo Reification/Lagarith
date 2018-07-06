@@ -9,12 +9,6 @@
     <ClInclude Include="compact.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="convert_lagarith.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
-    <ClInclude Include="convert_xvid.h">
-      <Filter>Headers</Filter>
-    </ClInclude>
     <ClInclude Include="interface.h">
       <Filter>Headers</Filter>
     </ClInclude>
@@ -24,12 +18,10 @@
     <ClInclude Include="prediction.h">
       <Filter>Headers</Filter>
     </ClInclude>
-    <ClInclude Include="amd64inc.asm" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="compact.cpp" />
     <ClCompile Include="compression.cpp" />
-    <ClCompile Include="convert_lagarith.cpp" />
     <ClCompile Include="decompression.cpp" />
     <ClCompile Include="fibonacci.cpp" />
     <ClCompile Include="interface.cpp" />
