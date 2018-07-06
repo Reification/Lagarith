@@ -83,15 +83,9 @@ inline void * lag_aligned_malloc( void *ptr, int size, int align, char *str ) {
 // y must be 2^n
 #define align_round(x,y) ((((unsigned int)(x))+(y-1))&(~(y-1)))
 
-//#include "resource.h"
 #include "compact.h"
 
 static const DWORD FOURCC_LAGS = mmioFOURCC('L','A','G','S');
-//static const DWORD FOURCC_YUY2 = mmioFOURCC('Y','U','Y','2');
-//static const DWORD FOURCC_UYVY = mmioFOURCC('U','Y','V','Y');
-//static const DWORD FOURCC_YV16 = mmioFOURCC('Y','V','1','6');
-//static const DWORD FOURCC_YV12 = mmioFOURCC('Y','V','1','2');
-
 
 // possible frame flags
 

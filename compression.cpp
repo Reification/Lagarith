@@ -40,11 +40,7 @@ DWORD CodecInst::CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpb
 	length = width*height*format/8;
 
 	unsigned int buffer_size;
-	if ( format < RGB24 ){
-		buffer_size = align_round(width,32)*height*format/8+1024;
-	} else {
-		buffer_size = align_round(width,16)*height*4+1024;
-	}
+	buffer_size = align_round(width,16)*height*4+1024;
 	
 	buffer = (unsigned char *)lag_aligned_malloc(buffer, buffer_size,16,"buffer");
 	buffer2 = (unsigned char *)lag_aligned_malloc(buffer2, buffer_size,16,"buffer2");
