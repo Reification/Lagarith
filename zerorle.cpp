@@ -34,8 +34,6 @@
 
 
 void TestAndRLE_SSE2(unsigned char * const __restrict in, unsigned char ** const __restrict out1, unsigned char ** const __restrict out3, const unsigned int length);
-void TestAndRLE_SSE(unsigned char * const __restrict in, unsigned char ** const __restrict out1, unsigned char ** const __restrict out3, const unsigned int length);
-void TestAndRLE_MMX(unsigned char * const __restrict in, unsigned char ** const __restrict out1, unsigned char ** const __restrict out3, const unsigned int length);
 
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
