@@ -15,7 +15,7 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#pragma once
+//#pragma once
 #include "interface.h"
 #include "lagarith.h"
 #include <commctrl.h>
@@ -60,8 +60,9 @@ CodecInst::CodecInst(){
 
 HMODULE hmoduleLagarith=0;
 
-char *mode_options[]={"RGBA","RGB (Default)","YUY2","YV12"};
+const char *mode_options[]={"RGBA","RGB (Default)","YUY2","YV12"};
 
+#if 0
 HWND CreateTooltip(HWND hwnd){
     // initialize common controls
 	INITCOMMONCONTROLSEX	iccex;		// struct specifying control classes to register
@@ -85,11 +86,12 @@ HWND CreateTooltip(HWND hwnd){
 
 	return hwndTT;
 }
+#endif // 0
 
 void StoreRegistrySettings(bool nullframes, bool suggestrgb, bool multithread, bool noupsample, int mode ){
 	DWORD dp;
 	HKEY regkey;
-	char * ModeStrings[4] = {"RGBA","RGB","YUY2","YV12"};
+	const char * ModeStrings[4] = {"RGBA","RGB","YUY2","YV12"};
 	if ( RegCreateKeyEx(HKEY_CURRENT_USER,"Software\\Lagarith",0,NULL,REG_OPTION_NON_VOLATILE,KEY_WRITE,NULL,&regkey,&dp) == ERROR_SUCCESS){
 		RegSetValueEx(regkey,"NullFrames",0,REG_DWORD,(unsigned char*)&nullframes,4);
 		RegSetValueEx(regkey,"SuggestRGB",0,REG_DWORD,(unsigned char*)&suggestrgb,4);
@@ -102,7 +104,7 @@ void StoreRegistrySettings(bool nullframes, bool suggestrgb, bool multithread, b
 
 void LoadRegistrySettings(bool * nullframes, bool * suggestrgb, bool * multithread, bool * noupsample, int * mode ){
 	HKEY regkey;
-	char * ModeStrings[4] = {"RGBA","RGB","YUY2","YV12"};
+	//const char* ModeStrings[4] = {"RGBA","RGB","YUY2","YV12"};
 	unsigned char data[]={0,0,0,0,0,0,0,0};
 	DWORD size=sizeof(data);
 	if ( RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Lagarith",0,KEY_READ,&regkey) == ERROR_SUCCESS){
@@ -522,7 +524,7 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
   hmoduleLagarith = (HMODULE)hinstDLL;
 
   DWORD_PTR dwDriverID = 0;
-  HDRVR hDriver = nullptr;
+  //HDRVR hDriver = nullptr;
   UINT uiMessage = (UINT)fdwReason;
   LPARAM lParam1 = (LPARAM)lpvReserved;
   LPARAM lParam2 = 0;
@@ -637,8 +639,8 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
     return (LRESULT)DRV_OK;
   }
 
-  if ( uiMessage < DRV_USER )
-    return (BOOL)DefDriverProc( dwDriverID, hDriver, uiMessage, lParam1, lParam2 );
+  //if ( uiMessage < DRV_USER )
+  //  return (BOOL)DefDriverProc( dwDriverID, hDriver, uiMessage, lParam1, lParam2 );
   return ICERR_UNSUPPORTED;
 
 }

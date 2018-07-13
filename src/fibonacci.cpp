@@ -15,9 +15,6 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef _FIBONACCI_CPP
-#define _FIBONACCI_CPP
-
 #include <math.h>
 #include <stdlib.h>
 #include <memory.h>
@@ -46,80 +43,85 @@
 	}\
 }
 
-unsigned int FibonacciEncode(unsigned int * in, unsigned char * out){
+unsigned int FibonacciEncode(unsigned int* in, unsigned char* out) {
 	unsigned char output[12];
-	unsigned int pos=0;
-	unsigned int bitpos=0x80;
-	out[0]=0;
-	unsigned int series[]={1,2,3,5,8,13,21};
-	for ( unsigned int b =0; b < 256; b++ ){
-		memset(output,0,12);
-		unsigned int num = in[b]+1; // value needs to be >= 1
-		
+	unsigned int  pos     = 0;
+	unsigned int  bitpos  = 0x80;
+	out[0]                = 0;
+	unsigned int series[] = {1, 2, 3, 5, 8, 13, 21};
+	for (unsigned int b = 0; b < 256; b++) {
+		memset(output, 0, 12);
+		unsigned int num = in[b] + 1; // value needs to be >= 1
+
 		// calculate Fibonacci part
 		unsigned int a;
-		unsigned int bits =32;
-		for( ; !(num & 0x80000000) && bits; bits-- )
-			num<<=1;
-		num<<=1;
+		unsigned int bits = 32;
+		for (; !(num & 0x80000000) && bits; bits--)
+			num <<= 1;
+		num <<= 1;
 		assert(bits);
-		unsigned int bits2=bits;
+		unsigned int bits2 = bits;
 
-		while(bits){
-			for ( a =0; series[a]<= bits; a++ );
+		while (bits) {
+			for (a = 0; series[a] <= bits; a++)
+				;
 			a--;
-			output[a]=1;
-			bits-=series[a];
+			output[a] = 1;
+			bits -= series[a];
 		}
-		for ( a =7; !output[a]; a-- );
+		for (a = 7; !output[a]; a--)
+			;
 		a++;
-		output[a]=1;
-		for ( unsigned int x = 0; x <= a; x++ )
-			writeBit( output[x] );
+		output[a] = 1;
+		for (unsigned int x = 0; x <= a; x++)
+			writeBit(output[x]);
 		bits2--;
 
 		//write numerical part
-		for (unsigned int place = 0x80000000 ; bits2; bits2--){
-			writeBit( num&place);
-			place>>=1;
+		for (unsigned int place = 0x80000000; bits2; bits2--) {
+			writeBit(num & place);
+			place >>= 1;
 		}
-		if ( in[b]==0 ){
+		if (in[b] == 0) {
 			unsigned int i;
-			for ( i=1;i+b<256&&in[b+i]==0;i++);
-			b+=i-1;
-			memset(output,0,12);
-			
+			for (i = 1; i + b < 256 && in[b + i] == 0; i++)
+				;
+			b += i - 1;
+			memset(output, 0, 12);
+
 			// calculate Fibonacci part
-			bits =32;
-			num=i;
-			for( ; !(num & 0x80000000) && bits; bits-- )
-				num<<=1;
+			bits = 32;
+			num  = i;
+			for (; !(num & 0x80000000) && bits; bits--)
+				num <<= 1;
 
-			assert(bits > 0 );
+			assert(bits > 0);
 
-			num<<=1;
-			bits2=bits;
-			while(bits){
-				for ( a =0; series[a]<= bits; a++ );
+			num <<= 1;
+			bits2 = bits;
+			while (bits) {
+				for (a = 0; series[a] <= bits; a++)
+					;
 				a--;
-				output[a]=1;
-				bits-=series[a];
+				output[a] = 1;
+				bits -= series[a];
 			}
-			for ( a =7; !output[a]; a-- );
+			for (a = 7; !output[a]; a--)
+				;
 			a++;
-			output[a]=1;
-			for ( unsigned int x = 0; x <= a; x++ )
-				writeBit( output[x] );
+			output[a] = 1;
+			for (unsigned int x = 0; x <= a; x++)
+				writeBit(output[x]);
 			bits2--;
 
 			//write numerical part
-			for (unsigned int place = 0x80000000 ; bits2; bits2--){
-				writeBit( num&place);
-				place>>=1;
+			for (unsigned int place = 0x80000000; bits2; bits2--) {
+				writeBit(num & place);
+				place >>= 1;
 			}
 		}
 	}
-	return pos+(bitpos!=0x80);
+	return pos + (bitpos != 0x80);
 }
 
 #define readBit() { \
@@ -131,60 +133,57 @@ unsigned int FibonacciEncode(unsigned int * in, unsigned char * out){
 	}\
 }
 
-unsigned int FibonacciDecode(const unsigned char * in, unsigned int * out){
-	unsigned int pos =0;
+unsigned int FibonacciDecode(const unsigned char* in, unsigned int* out) {
+	unsigned int pos = 0;
 	unsigned int bit;
-	unsigned int bitpos = 0x80;
-	unsigned int series[]={1,2,3,5,8,13,21};
+	unsigned int bitpos   = 0x80;
+	unsigned int series[] = {1, 2, 3, 5, 8, 13, 21};
 
-	for ( unsigned int b =0; b < 256; b++ ){
-		bit =0;
-		unsigned int prevbit=0;
-		unsigned int bits=0;
-		unsigned int a=0;
-		for ( ; !(prevbit && bit ); a++ ){
-
+	for (unsigned int b = 0; b < 256; b++) {
+		bit                  = 0;
+		unsigned int prevbit = 0;
+		unsigned int bits    = 0;
+		unsigned int a       = 0;
+		for (; !(prevbit && bit); a++) {
 			prevbit = bit;
 			readBit();
-			if ( bit && !prevbit )
-				bits+=series[a];
+			if (bit && !prevbit)
+				bits += series[a];
 		}
 		bits--;
-		unsigned int value=1;
-		for ( a= 0;a < bits; a++ ){
+		unsigned int value = 1;
+		for (a = 0; a < bits; a++) {
 			readBit();
-			value<<=1;
-			if ( bit )
+			value <<= 1;
+			if (bit)
 				value++;
 		}
 		value--;
-		out[b]= value;
-		if ( value == 0){
-
-			bit =0;
-			prevbit=0;
-			bits=0;
-			for ( a =0; !(prevbit && bit); a++ ){
+		out[b] = value;
+		if (value == 0) {
+			bit     = 0;
+			prevbit = 0;
+			bits    = 0;
+			for (a = 0; !(prevbit && bit); a++) {
 				prevbit = bit;
 				readBit();
 
-				if ( bit && !prevbit )
-					bits+=series[a];
+				if (bit && !prevbit)
+					bits += series[a];
 			}
 			bits--;
-			value=1;
+			value = 1;
 
-			for ( a= 0;a < bits; a++ ){
+			for (a = 0; a < bits; a++) {
 				readBit();
-				value<<=1;
-				if ( bit )
+				value <<= 1;
+				if (bit)
 					value++;
 			}
-			if ( b+value >= 257 )
-				value = 256-b;
-			b+=value-1;	
+			if (b + value >= 257)
+				value = 256 - b;
+			b += value - 1;
 		}
 	}
-	return pos+(bitpos!=0x80);
+	return pos + (bitpos != 0x80);
 }
-#endif

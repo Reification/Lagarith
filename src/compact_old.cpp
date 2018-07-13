@@ -1,3 +1,4 @@
+#if 0
 #pragma once
 
 //	Lagarith v1.3.25, copyright 2011 by Ben Greenwood.
@@ -164,14 +165,15 @@ void ObsoleteDecode(const unsigned char *xin, unsigned char *xout, int length, u
 	}
 }
 
-#define readBit() { \
-	bit = bitpos & in[pos];\
-	bitpos >>=1;\
-	if ( !bitpos ){\
-		pos++;\
-		bitpos = 0x80;\
-	}\
-}
+#define readBit()                                                                                  \
+	{                                                                                                \
+		bit = bitpos & in[pos];                                                                        \
+		bitpos >>= 1;                                                                                  \
+		if (!bitpos) {                                                                                 \
+			pos++;                                                                                       \
+			bitpos = 0x80;                                                                               \
+		}                                                                                              \
+	}
 
 int ObsoleteFibonacciDecode( const unsigned char * in, int * out, int length){
 	int pos =0;
@@ -370,3 +372,5 @@ void ObsoleteUncompact( const unsigned char * in, unsigned char * out, int lengt
 		ObsoleteDecode(in+skip,out,length,&ranges[0],scale);
 	}
 }
+
+#endif // 0

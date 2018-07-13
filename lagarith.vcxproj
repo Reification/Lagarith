@@ -162,24 +162,24 @@
     </MASM>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="compact.h" />
-    <ClInclude Include="interface.h" />
-    <ClInclude Include="lagarith.h" />
-    <ClInclude Include="prediction.h" />
+    <ClInclude Include="src/compact.h" />
+    <ClInclude Include="src/interface.h" />
+    <ClInclude Include="include/lagarith.h" />
+    <ClInclude Include="src/prediction.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="compact.cpp" />
-    <ClCompile Include="compression.cpp" />
-    <ClCompile Include="decompression.cpp" />
-    <ClCompile Include="fibonacci.cpp" />
-    <ClCompile Include="interface.cpp" />
-    <ClCompile Include="prediction.cpp" />
-    <ClCompile Include="range.cpp" />
-    <ClCompile Include="threading.cpp" />
-    <ClCompile Include="zerorle.cpp" />
+    <ClCompile Include="src/compact.cpp" />
+    <ClCompile Include="src/compression.cpp" />
+    <ClCompile Include="src/decompression.cpp" />
+    <ClCompile Include="src/fibonacci.cpp" />
+    <ClCompile Include="src/interface.cpp" />
+    <ClCompile Include="src/prediction.cpp" />
+    <ClCompile Include="src/range.cpp" />
+    <ClCompile Include="src/threading.cpp" />
+    <ClCompile Include="src/zerorle.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
+  <!-- ImportGroup Label="ExtensionTargets">
     <Import Project="$(VCTargetsPath)\BuildCustomizations\masm.targets" />
-  </ImportGroup>
+  </ImportGroup -->
 </Project>
