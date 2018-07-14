@@ -20,18 +20,14 @@ set(API_HDR_DIR "include")
 set(LINK_LIBS)
 
 if(WIN32)
-  #set(API_PLAT_HDR_DIR "w32/common")
-  #string(REGEX REPLACE "/W[0-4]" "/W0" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-  #add_definitions(-DMHD_W32LIB -D_CRT_NONSTDC_NO_WARNINGS -D_CRT_SECURE_NO_WARNINGS)
+  add_definitions(-D -D_CRT_SECURE_NO_WARNINGS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
 elseif(ANDROID)
   #set(API_PLAT_HDR_DIR "android")
   #set(LINK_LIBS "libsocket.a")
   #set(BUILD_TESTS_AS_LIBS TRUE)
-  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-tautological-constant-out-of-range-compare")
 elseif(APPLE)
   #set(API_PLAT_HDR_DIR "darwin")
-  #set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-tautological-constant-out-of-range-compare")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
 else()
   message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} NYI")
@@ -39,15 +35,6 @@ endif()
 
 file(GLOB LIB_SRC "${LIB_SRC_DIR}/*.cpp" "${LIB_SRC_DIR}/*.inl")
 file(GLOB LIB_HDR "${LIB_SRC_DIR}/*.h")
-
-#list(FILTER LIB_SRC EXCLUDE REGEX "/test_")
-#list(FILTER LIB_SRC EXCLUDE REGEX "/connection_https")
-#list(FILTER LIB_HDR EXCLUDE REGEX "/test_")
-#list(FILTER LIB_HDR EXCLUDE REGEX "/connection_https")
-
-#promoting these to API
-#list(FILTER LIB_HDR EXCLUDE REGEX "/mhd_str.h")
-#list(FILTER LIB_HDR EXCLUDE REGEX "/mhd_limits.h")
 
 file(GLOB API_HDR "${API_HDR_DIR}/*.h")
 
