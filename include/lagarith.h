@@ -32,9 +32,6 @@ extern bool SSSE3;
 
 unsigned __int64 GetTime();
 
-
-//#define LOSSLESS_CHECK			// enables decompressing encoded frames and comparing to original
-
 #define LAGARITH_RELEASE // if this is a version to release, disables all debugging info
 
 inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str) {
@@ -98,17 +95,16 @@ static const DWORD FOURCC_LAGS = mmioFOURCC('L', 'A', 'G', 'S');
 
 // possible frame flags
 
-#define UNCOMPRESSED 1 // Used for debugging
-#define UNALIGNED_RGB24                                                                            \
-	2 // RGB24 keyframe with a width that is not a multiple of 4; this has to be handled             \
-	  // differently due to the fact that previously, the codec did not remove byte padding to       \
-	  // align each scan line. Old versions are decoded as ARITH_RGB24
+#define UNCOMPRESSED 1		// Used for debugging
+// RGB24 keyframe with a width that is not a multiple of 4; this has to be handled
+// differently due to the fact that previously, the codec did not remove byte padding to
+// align each scan line. Old versions are decoded as ARITH_RGB24
+#define UNALIGNED_RGB24 2
 #define ARITH_RGB24 4      // Standard RGB24 keyframe frame
 #define BYTEFRAME 5        // solid greyscale color frame
 #define PIXELFRAME 6       // solid non-greyscale color frame
 #define ARITH_ALPHA 8      // Standard RGBA keyframe frame
 #define PIXELFRAME_ALPHA 9 // RGBA pixel frame
-
 
 // possible colorspaces
 #define RGB24 24
@@ -133,7 +129,7 @@ struct ThreadData {
 class CodecInst {
 public:
 	//if the codec has been properly initalized yet
-	int                  started; 
+	int                  started;
 	unsigned char*       buffer;
 	unsigned char*       prev;
 	const unsigned char* in;
@@ -144,7 +140,7 @@ public:
 	unsigned int width;
 	unsigned int height;
 	//input format for compressing, output format for decompression. Also the bitdepth.
-	unsigned int format; 
+	unsigned int format;
 
 	bool          nullframes;
 	bool          use_alpha;
@@ -178,8 +174,6 @@ public:
 
 	BOOL QueryConfigure();
 
-	void uncompact_macro(const unsigned char* _in, unsigned char* _out, unsigned int _length,
-	                     ThreadData* _thread);
 	int  InitThreads(int encode);
 	void EndThreads();
 
