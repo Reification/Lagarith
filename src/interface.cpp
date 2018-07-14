@@ -60,34 +60,6 @@ CodecInst::CodecInst(){
 
 HMODULE hmoduleLagarith=0;
 
-const char *mode_options[]={"RGBA","RGB (Default)","YUY2","YV12"};
-
-#if 0
-HWND CreateTooltip(HWND hwnd){
-    // initialize common controls
-	INITCOMMONCONTROLSEX	iccex;		// struct specifying control classes to register
-    iccex.dwICC		= ICC_WIN95_CLASSES;
-    iccex.dwSize	= sizeof(INITCOMMONCONTROLSEX);
-    InitCommonControlsEx(&iccex);
-
-	HINSTANCE	ghThisInstance=(HINSTANCE)GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-  HWND		hwndTT;					// handle to the tooltip control
-
-    // create a tooltip window
-	hwndTT = CreateWindowEx(WS_EX_TOPMOST, TOOLTIPS_CLASS, NULL, WS_POPUP | TTS_NOPREFIX | TTS_ALWAYSTIP,
-							CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT,
-							hwnd, NULL, ghThisInstance, NULL);
-	
-	SetWindowPos(hwndTT, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-
-	// set some timeouts so tooltips appear fast and stay long (32767 seems to be a limit here)
-	SendMessage(hwndTT, TTM_SETDELAYTIME, (WPARAM)(DWORD)TTDT_INITIAL, (LPARAM)500);
-	SendMessage(hwndTT, TTM_SETDELAYTIME, (WPARAM)(DWORD)TTDT_AUTOPOP, (LPARAM)30*1000);
-
-	return hwndTT;
-}
-#endif // 0
-
 void StoreRegistrySettings(bool nullframes, bool suggestrgb, bool multithread, bool noupsample, int mode ){
 	DWORD dp;
 	HKEY regkey;
@@ -104,7 +76,6 @@ void StoreRegistrySettings(bool nullframes, bool suggestrgb, bool multithread, b
 
 void LoadRegistrySettings(bool * nullframes, bool * suggestrgb, bool * multithread, bool * noupsample, int * mode ){
 	HKEY regkey;
-	//const char* ModeStrings[4] = {"RGBA","RGB","YUY2","YV12"};
 	unsigned char data[]={0,0,0,0,0,0,0,0};
 	DWORD size=sizeof(data);
 	if ( RegOpenKeyEx(HKEY_CURRENT_USER,"Software\\Lagarith",0,KEY_READ,&regkey) == ERROR_SUCCESS){
