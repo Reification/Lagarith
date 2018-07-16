@@ -14,17 +14,17 @@ public:
 	bool InitCompressBuffers(const unsigned int length);
 	void FreeCompressBuffers();
 
-	unsigned int Compact(unsigned char* __restrict in, unsigned char* __restrict out,
-	                     const unsigned int length);
-	void         Uncompact(const unsigned char* __restrict in, unsigned char* __restrict out,
-	                       const unsigned int length);
+	unsigned int Compact(unsigned char* in, unsigned char* out, const unsigned int length);
+
+	void Uncompact(const unsigned char* in, unsigned char* out,
+	               const unsigned int length);
+
 	unsigned int Calcprob(const unsigned char* in, unsigned int length, unsigned char* out = 0);
 	void         Scaleprob(const unsigned int length);
 	unsigned int Readprob(const unsigned char* in);
+
 	unsigned int Encode(const unsigned char* in, unsigned char* out, const unsigned int length);
-	void         Decode_And_DeRLE(const unsigned char* __restrict in, unsigned char* __restrict out,
+
+	void         Decode_And_DeRLE(const unsigned char* in, unsigned char* out,
 	                              const unsigned int length, unsigned int level);
 };
-
-void ObsoleteUncompact(const unsigned char* in, unsigned char* out, int length,
-                       unsigned char* buffer);

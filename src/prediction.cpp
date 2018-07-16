@@ -50,7 +50,7 @@ inline int median(int x, int y, int z) {
 	return x + delta; // min
 }
 
-void Block_Predict_SSE2(const unsigned char* __restrict source, unsigned char* __restrict dest,
+void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest,
                         const unsigned int width, const unsigned int length, const bool rgbmode) {
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
@@ -228,8 +228,8 @@ void Block_Predict_SSE2(const unsigned char* __restrict source, unsigned char* _
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Block_Predict_YUV16_SSE2(const unsigned char* __restrict source,
-                              unsigned char* __restrict dest, const unsigned int width,
+void Block_Predict_YUV16_SSE2(const unsigned char* source,
+                              unsigned char* dest, const unsigned int width,
                               const unsigned int length, const bool is_y) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
@@ -361,10 +361,10 @@ void Block_Predict_YUV16_SSE2(const unsigned char* __restrict source,
 	}
 }
 
-void Decorrilate_And_Split_RGB24_SSE2(const unsigned char* __restrict in,
-                                      unsigned char* __restrict rdst,
-                                      unsigned char* __restrict gdst,
-                                      unsigned char* __restrict bdst, const unsigned int width,
+void Decorrilate_And_Split_RGB24_SSE2(const unsigned char* in,
+                                      unsigned char* rdst,
+                                      unsigned char* gdst,
+                                      unsigned char* bdst, const unsigned int width,
                                       const unsigned int height) {
 	//unsigned __int64 t1,t2;
 	//static HANDLE file = NULL;
@@ -461,10 +461,10 @@ void Decorrilate_And_Split_RGB24_SSE2(const unsigned char* __restrict in,
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Decorrilate_And_Split_RGB32_SSE2(const unsigned char* __restrict in,
-                                      unsigned char* __restrict rdst,
-                                      unsigned char* __restrict gdst,
-                                      unsigned char* __restrict bdst, const unsigned int width,
+void Decorrilate_And_Split_RGB32_SSE2(const unsigned char* in,
+                                      unsigned char* rdst,
+                                      unsigned char* gdst,
+                                      unsigned char* bdst, const unsigned int width,
                                       const unsigned int height) {
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
@@ -533,9 +533,9 @@ void Decorrilate_And_Split_RGB32_SSE2(const unsigned char* __restrict in,
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Decorrilate_And_Split_RGBA_SSE2(const unsigned char* __restrict in,
-                                     unsigned char* __restrict rdst, unsigned char* __restrict gdst,
-                                     unsigned char* __restrict bdst, unsigned char* __restrict adst,
+void Decorrilate_And_Split_RGBA_SSE2(const unsigned char* in,
+                                     unsigned char* rdst, unsigned char* gdst,
+                                     unsigned char* bdst, unsigned char* adst,
                                      const unsigned int width, const unsigned int height) {
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
@@ -611,8 +611,8 @@ void Decorrilate_And_Split_RGBA_SSE2(const unsigned char* __restrict in,
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Split_YUY2_SSE2(const unsigned char* __restrict src, unsigned char* __restrict ydst,
-                     unsigned char* __restrict udst, unsigned char* __restrict vdst,
+void Split_YUY2_SSE2(const unsigned char* src, unsigned char* ydst,
+                     unsigned char* udst, unsigned char* vdst,
                      const unsigned int width, const unsigned int height) {
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
@@ -677,8 +677,8 @@ void Split_YUY2_SSE2(const unsigned char* __restrict src, unsigned char* __restr
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Split_UYVY_SSE2(const unsigned char* __restrict src, unsigned char* __restrict ydst,
-                     unsigned char* __restrict udst, unsigned char* __restrict vdst,
+void Split_UYVY_SSE2(const unsigned char* src, unsigned char* ydst,
+                     unsigned char* udst, unsigned char* vdst,
                      const unsigned int width, const unsigned int height) {
 	uintptr_t a     = 0;
 	uintptr_t align = (uintptr_t)src;
@@ -725,10 +725,10 @@ void Split_UYVY_SSE2(const unsigned char* __restrict src, unsigned char* __restr
 }
 
 
-void Interleave_And_Restore_YUY2_SSE2(unsigned char* __restrict output,
-                                      const unsigned char* __restrict ysrc,
-                                      const unsigned char* __restrict usrc,
-                                      const unsigned char* __restrict vsrc,
+void Interleave_And_Restore_YUY2_SSE2(unsigned char* output,
+                                      const unsigned char* ysrc,
+                                      const unsigned char* usrc,
+                                      const unsigned char* vsrc,
                                       const unsigned int width, const unsigned int height) {
 	// restore the bottom row of pixels + 2 pixels
 	{
@@ -936,10 +936,10 @@ void Interleave_And_Restore_YUY2_SSE2(unsigned char* __restrict output,
 	//WriteFile(file,msg,strlen(msg),&bytes,NULL);
 }
 
-void Interleave_And_Restore_RGB24_SSE2(unsigned char* __restrict output,
-                                       const unsigned char* __restrict rsrc,
-                                       const unsigned char* __restrict gsrc,
-                                       const unsigned char* __restrict bsrc,
+void Interleave_And_Restore_RGB24_SSE2(unsigned char* output,
+                                       const unsigned char* rsrc,
+                                       const unsigned char* gsrc,
+                                       const unsigned char* bsrc,
                                        const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
@@ -1153,10 +1153,10 @@ void Interleave_And_Restore_RGB24_SSE2(unsigned char* __restrict output,
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Interleave_And_Restore_RGB32_SSE2(unsigned char* __restrict output,
-                                       const unsigned char* __restrict rsrc,
-                                       const unsigned char* __restrict gsrc,
-                                       const unsigned char* __restrict bsrc,
+void Interleave_And_Restore_RGB32_SSE2(unsigned char* output,
+                                       const unsigned char* rsrc,
+                                       const unsigned char* gsrc,
+                                       const unsigned char* bsrc,
                                        const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = width * 4;
 	{
@@ -1390,11 +1390,11 @@ void Interleave_And_Restore_RGB32_SSE2(unsigned char* __restrict output,
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Interleave_And_Restore_RGBA_SSE2(unsigned char* __restrict output,
-                                      const unsigned char* __restrict rsrc,
-                                      const unsigned char* __restrict gsrc,
-                                      const unsigned char* __restrict bsrc,
-                                      const unsigned char* __restrict asrc,
+void Interleave_And_Restore_RGBA_SSE2(unsigned char* output,
+                                      const unsigned char* rsrc,
+                                      const unsigned char* gsrc,
+                                      const unsigned char* bsrc,
+                                      const unsigned char* asrc,
                                       const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = width * 4;
 	{
@@ -1615,8 +1615,8 @@ void Interleave_And_Restore_RGBA_SSE2(unsigned char* __restrict output,
 	}
 }
 
-void Restore_YV12_SSE2(unsigned char* __restrict ysrc, unsigned char* __restrict usrc,
-                       unsigned char* __restrict vsrc, const unsigned int width,
+void Restore_YV12_SSE2(unsigned char* ysrc, unsigned char* usrc,
+                       unsigned char* vsrc, const unsigned int width,
                        const unsigned int height) {
 	unsigned int a;
 	{
@@ -1956,84 +1956,84 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gs
 	}
 }
 
-void Block_Predict(const unsigned char* __restrict source, unsigned char* __restrict dest,
+void Block_Predict(const unsigned char* source, unsigned char* dest,
                    const unsigned int width, const unsigned int length, const bool rgbmode) {
 	Block_Predict_SSE2(source, dest, width, length, rgbmode);
 }
 
-void Block_Predict_YUV16(const unsigned char* __restrict source, unsigned char* __restrict dest,
+void Block_Predict_YUV16(const unsigned char* source, unsigned char* dest,
                          const unsigned int width, const unsigned int length, const bool is_y) {
 	Block_Predict_YUV16_SSE2(source, dest, width, length, is_y);
 }
 
-void Decorrilate_And_Split_RGB24(const unsigned char* __restrict in, unsigned char* __restrict rdst,
-                                 unsigned char* __restrict gdst, unsigned char* __restrict bdst,
+void Decorrilate_And_Split_RGB24(const unsigned char* in, unsigned char* rdst,
+                                 unsigned char* gdst, unsigned char* bdst,
                                  const unsigned int width, const unsigned int height,
                                  Performance* performance) {
 	Decorrilate_And_Split_RGB24_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrilate_And_Split_RGB32(const unsigned char* __restrict in, unsigned char* __restrict rdst,
-                                 unsigned char* __restrict gdst, unsigned char* __restrict bdst,
+void Decorrilate_And_Split_RGB32(const unsigned char* in, unsigned char* rdst,
+                                 unsigned char* gdst, unsigned char* bdst,
                                  const unsigned int width, const unsigned int height,
                                  Performance* performance) {
 	Decorrilate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrilate_And_Split_RGBA(const unsigned char* __restrict in, unsigned char* __restrict rdst,
-                                unsigned char* __restrict gdst, unsigned char* __restrict bdst,
-                                unsigned char* __restrict adst, const unsigned int width,
+void Decorrilate_And_Split_RGBA(const unsigned char* in, unsigned char* rdst,
+                                unsigned char* gdst, unsigned char* bdst,
+                                unsigned char* adst, const unsigned int width,
                                 const unsigned int height, Performance* performance) {
 	Decorrilate_And_Split_RGBA_SSE2(in, rdst, gdst, bdst, adst, width, height);
 }
 
-void Split_YUY2(const unsigned char* __restrict src, unsigned char* __restrict ydst,
-                unsigned char* __restrict udst, unsigned char* __restrict vdst,
+void Split_YUY2(const unsigned char* src, unsigned char* ydst,
+                unsigned char* udst, unsigned char* vdst,
                 const unsigned int width, const unsigned int height, Performance* performance) {
 	Split_YUY2_SSE2(src, ydst, udst, vdst, width, height);
 }
 
-void Split_UYVY(const unsigned char* __restrict src, unsigned char* __restrict ydst,
-                unsigned char* __restrict udst, unsigned char* __restrict vdst,
+void Split_UYVY(const unsigned char* src, unsigned char* ydst,
+                unsigned char* udst, unsigned char* vdst,
                 const unsigned int width, const unsigned int height, Performance* performance) {
 	Split_UYVY_SSE2(src, ydst, udst, vdst, width, height);
 }
 
-void Interleave_And_Restore_RGB24(unsigned char* __restrict out,
-                                  const unsigned char* __restrict rsrc,
-                                  const unsigned char* __restrict gsrc,
-                                  const unsigned char* __restrict bsrc, const unsigned int width,
+void Interleave_And_Restore_RGB24(unsigned char* out,
+                                  const unsigned char* rsrc,
+                                  const unsigned char* gsrc,
+                                  const unsigned char* bsrc, const unsigned int width,
                                   const unsigned int height, Performance* performance) {
 	Interleave_And_Restore_RGB24_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGB32(unsigned char* __restrict out,
-                                  const unsigned char* __restrict rsrc,
-                                  const unsigned char* __restrict gsrc,
-                                  const unsigned char* __restrict bsrc, const unsigned int width,
+void Interleave_And_Restore_RGB32(unsigned char* out,
+                                  const unsigned char* rsrc,
+                                  const unsigned char* gsrc,
+                                  const unsigned char* bsrc, const unsigned int width,
                                   const unsigned int height, Performance* performance) {
 	Interleave_And_Restore_RGB32_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGBA(unsigned char* __restrict out,
-                                 const unsigned char* __restrict rsrc,
-                                 const unsigned char* __restrict gsrc,
-                                 const unsigned char* __restrict bsrc,
-                                 const unsigned char* __restrict asrc, const unsigned int width,
+void Interleave_And_Restore_RGBA(unsigned char* out,
+                                 const unsigned char* rsrc,
+                                 const unsigned char* gsrc,
+                                 const unsigned char* bsrc,
+                                 const unsigned char* asrc, const unsigned int width,
                                  const unsigned int height, Performance* performance) {
 	Interleave_And_Restore_RGBA_SSE2(out, rsrc, gsrc, bsrc, asrc, width, height);
 }
 
-void Interleave_And_Restore_YUY2(unsigned char* __restrict out,
-                                 const unsigned char* __restrict ysrc,
-                                 const unsigned char* __restrict usrc,
-                                 const unsigned char* __restrict vsrc, const unsigned int width,
+void Interleave_And_Restore_YUY2(unsigned char* out,
+                                 const unsigned char* ysrc,
+                                 const unsigned char* usrc,
+                                 const unsigned char* vsrc, const unsigned int width,
                                  const unsigned int height, Performance* performance) {
 	Interleave_And_Restore_YUY2_SSE2(out, ysrc, usrc, vsrc, width, height);
 }
 
-void Restore_YV12(unsigned char* __restrict ysrc, unsigned char* __restrict usrc,
-                  unsigned char* __restrict vsrc, const unsigned int width,
+void Restore_YV12(unsigned char* ysrc, unsigned char* usrc,
+                  unsigned char* vsrc, const unsigned int width,
                   const unsigned int height, Performance* performance) {
 	Restore_YV12_SSE2(ysrc, usrc, vsrc, width, height);
 }

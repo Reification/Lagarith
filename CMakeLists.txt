@@ -11,13 +11,11 @@ if("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files")
   set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
 endif()
 
-#set(BUILD_TESTS FALSE CACHE BOOL "Build simple manually run tests")
-#set(BUILD_TESTS_AS_LIBS FALSE)
+set(BUILD_TEST TRUE CACHE BOOL "Build simple manually run test")
+set(BUILD_TEST_AS_LIB FALSE)
 
 set(LIB_SRC_DIR "src")
 set(API_HDR_DIR "include")
-
-set(LINK_LIBS)
 
 if(WIN32)
   add_definitions(-D -D_CRT_SECURE_NO_WARNINGS)
@@ -34,7 +32,7 @@ else()
 endif()
 
 file(GLOB LIB_SRC "${LIB_SRC_DIR}/*.cpp" "${LIB_SRC_DIR}/*.inl")
-file(GLOB LIB_HDR "${LIB_SRC_DIR}/*.h")
+file(GLOB LIB_HDR "${LIB_SRC_DIR}/*.h" "${LIB_SRC_DIR}/*.hpp")
 
 file(GLOB API_HDR "${API_HDR_DIR}/*.h")
 
@@ -42,23 +40,30 @@ include_directories(  BEFORE
                       ${LIB_SRC_DIR} 
                       ${API_HDR_DIR} )
 
-add_library(${PROJECT_NAME} SHARED ${LIB_SRC} ${LIB_HDR} ${API_HDR})
-#set_property(TARGET ${PROJECT_NAME} APPEND PROPERTY COMPILE_FLAGS "-DBUILDING_MHD_LIB")
+add_library(${PROJECT_NAME} STATIC ${LIB_SRC} ${LIB_HDR} ${API_HDR})
 
 source_group("API" FILES ${API_HDR})
 
-#if(BUILD_TESTS)
-#  set(TESTS hellobrowser simplepost largepost)
-#  foreach(TEST ${TESTS})
-#    if(BUILD_TESTS_AS_LIBS)
-#      add_library("${TEST}" SHARED doc/examples/${TEST}.c)
-#    else()
-#      add_executable("${TEST}" doc/examples/${TEST}.c)
-#    endif()
-#    set_target_properties("${TEST}" PROPERTIES FOLDER "Tests")
-#    target_link_libraries("${TEST}" ${PROJECT_NAME} ${LINK_LIBS})
-#  endforeach()
-#endif()
+if(BUILD_TEST)
+	set(TEST_SRC_DIR "test")
+	set(TEST_DATA_DIR "${TEST_SRC_DIR}/data")
+	set(TEST_NAME "${PROJECT_NAME}_test")
+	set(TEST_BIN_DIR "${CMAKE_BINARY_DIR}/test_data")
+
+	file(GLOB TEST_SRC "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.hpp")
+
+	add_executable(${TEST_NAME} ${TEST_SRC})
+	target_link_libraries(${TEST_NAME} ${PROJECT_NAME})
+	set_target_properties(${TEST_NAME} PROPERTIES FOLDER "Tests")
+
+	file(GLOB TEST_DATA RELATIVE "${CMAKE_SOURCE_DIR}/${TEST_DATA_DIR}" "${TEST_DATA_DIR}/*.*")
+
+	make_directory(${TEST_BIN_DIR})
+	foreach(TEST_FILE ${TEST_DATA})
+		message(STATUS "copying ${TEST_FILE} to ${TEST_BIN_DIR}")
+		configure_file("${TEST_DATA_DIR}/${TEST_FILE}" "${TEST_BIN_DIR}/${TEST_FILE}" COPYONLY)
+	endforeach()
+endif()
 
 install(FILES $<TARGET_FILE:${PROJECT_NAME}> DESTINATION lib)
 install(FILES ${API_HDR} DESTINATION include/${PROJECT_NAME})

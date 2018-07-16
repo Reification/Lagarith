@@ -15,9 +15,6 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef _ZERO_RLE
-#define _ZERO_RLE
-
 #include <stdlib.h>
 #include <memory.h>
 #include <stdio.h>
@@ -33,8 +30,8 @@
 //extern bool SSSE3;
 
 
-void TestAndRLE_SSE2(unsigned char* const __restrict in, unsigned char** const __restrict out1,
-                     unsigned char** const __restrict out3, const unsigned int length);
+void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
+                     unsigned char** const out3, const unsigned int length);
 
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
@@ -137,8 +134,8 @@ first is zero, in this case the function will return -1, and only
 the first byte needs to be saved.
 */
 
-unsigned int TestAndRLE(unsigned char* const __restrict in, unsigned char* const __restrict out1,
-                        unsigned char* const __restrict out3, const unsigned int length,
+unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
+                        unsigned char* const out3, const unsigned int length,
                         int* level) {
 	unsigned char* lvl1 = out1;
 	unsigned char* lvl3 = out3;
@@ -213,8 +210,8 @@ unsigned int TestAndRLE(unsigned char* const __restrict in, unsigned char* const
 	return len3;
 }
 
-void TestAndRLE_SSE2(unsigned char* const __restrict in, unsigned char** const __restrict out1,
-                     unsigned char** const __restrict out3, const unsigned int length) {
+void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
+                     unsigned char** const out3, const unsigned int length) {
 	//23
 	//20
 	//11
@@ -411,4 +408,3 @@ int deRLE(const unsigned char* in, unsigned char* out, const int length, const i
 }
 
 //MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
-#endif

@@ -1,5 +1,1 @@
-#temporary entries - after cmake-ification it will just be the build/ directory
-.vs/
-x64/
-*.user
 build/

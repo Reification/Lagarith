@@ -30,8 +30,6 @@
 
 extern bool SSSE3;
 
-unsigned __int64 GetTime();
-
 #define LAGARITH_RELEASE // if this is a version to release, disables all debugging info
 
 inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str) {
@@ -189,7 +187,6 @@ public:
 	                     unsigned int len2, unsigned char* dst3, unsigned int len3);
 	void ArithRGBDecompress();
 	void ArithRGBADecompress();
-	void UnalignedDecompress();
 };
 
 CodecInst* Open(ICOPEN* icinfo);

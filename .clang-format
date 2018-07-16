@@ -56,7 +56,7 @@ FixNamespaceComments: false
 ForEachMacros:
 IncludeBlocks:   Preserve
 IndentCaseLabels: false
-IndentPPDirectives: None
+IndentPPDirectives: AfterHash
 IndentWidth:     2
 IndentWrappedFunctionNames: true
 KeepEmptyLinesAtTheStartOfBlocks: false

@@ -15,8 +15,6 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef _RANGE_CPP
-#define _RANGE_CPP
 #include "compact.h"
 #include <memory.h>
 #include <mmintrin.h>
@@ -51,8 +49,8 @@ const unsigned int* dist_rest = &dist_restore[0];
 
 // Compress a byte stream using range coding. The freqency table
 // "prob_ranges" will previously have been set up by the Calcprob function
-unsigned int CompressClass::Encode(const unsigned char* __restrict in,
-                                   unsigned char* __restrict out, const unsigned int length) {
+unsigned int CompressClass::Encode(const unsigned char* in,
+                                   unsigned char* out, const unsigned int length) {
 	unsigned int               low    = 0;
 	unsigned int               range  = TOP_VALUE;
 	//unsigned int               help   = 0;
@@ -227,8 +225,8 @@ For the RLE cases, the output is initally set to zero, and then the output
 pointer is advanced by the apropriate value when ever a run is detected in the
 decoder.
 */
-void CompressClass::Decode_And_DeRLE(const unsigned char* __restrict in,
-                                     unsigned char* __restrict out, const unsigned int length,
+void CompressClass::Decode_And_DeRLE(const unsigned char* in,
+                                     unsigned char* out, const unsigned int length,
                                      unsigned int level) {
 	__assume(length >= 2);
 
@@ -510,7 +508,5 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* __restrict in,
 	unsigned long bytes;
 	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
-
-#endif
 
 //MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);

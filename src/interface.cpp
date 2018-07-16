@@ -15,7 +15,6 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-//#pragma once
 #include "interface.h"
 #include "lagarith.h"
 #include <commctrl.h>
@@ -488,6 +487,7 @@ DWORD CodecInst::DecompressGetPalette(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEA
 	return_badformat()
 }
 
+#if 0
 // DLL MAIN NOT USED - this is just to verify completeness of code!
 __declspec(dllexport) 
 BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
@@ -613,7 +613,7 @@ BOOL WINAPI DllMain( HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved )
   //if ( uiMessage < DRV_USER )
   //  return (BOOL)DefDriverProc( dwDriverID, hDriver, uiMessage, lParam1, lParam2 );
   return ICERR_UNSUPPORTED;
-
 }
+#endif // 0
 
 //MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
