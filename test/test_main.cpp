@@ -8,6 +8,7 @@ int main(int argc, const char* argv[]) {
 	(void)argc;
 #if defined(_WIN32)
 #	define PATH_SEP '\\'
+# define chdir _chdir
 #else
 #	define PATH_SEP '/'
 #endif
@@ -23,10 +24,10 @@ int main(int argc, const char* argv[]) {
 	int testsRun    = 0;
 	int testsPassed = 0;
 
-	testsPassed += testEncode();
+	testsPassed += testEncodeDecodeRGB();
 	testsRun++;
 
-	testsPassed += testDecode();
+	testsPassed += testEncodeDecodeRGBA();
 	testsRun++;
 
 	printf("%d/%d tests passed.\n", testsPassed, testsRun);

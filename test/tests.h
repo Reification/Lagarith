@@ -1,4 +1,4 @@
 #pragma once
 
-extern bool testEncode();
-extern bool testDecode();
+extern bool testEncodeDecodeRGB();
+extern bool testEncodeDecodeRGBA();

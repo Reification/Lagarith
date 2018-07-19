@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.11)
 
-project(lagarith LANGUAGES CXX)
+project(lagarith LANGUAGES C CXX)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
@@ -18,11 +18,9 @@ set(LIB_SRC_DIR "src")
 set(API_HDR_DIR "include")
 
 if(WIN32)
-  add_definitions(-D -D_CRT_SECURE_NO_WARNINGS)
+  add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
 elseif(ANDROID)
-  #set(API_PLAT_HDR_DIR "android")
-  #set(LINK_LIBS "libsocket.a")
   #set(BUILD_TESTS_AS_LIBS TRUE)
 elseif(APPLE)
   #set(API_PLAT_HDR_DIR "darwin")
@@ -46,13 +44,15 @@ source_group("API" FILES ${API_HDR})
 
 if(BUILD_TEST)
 	set(TEST_SRC_DIR "test")
+	set(THIRD_PARTY_DIR "third_party")
 	set(TEST_DATA_DIR "${TEST_SRC_DIR}/data")
 	set(TEST_NAME "${PROJECT_NAME}_test")
 	set(TEST_BIN_DIR "${CMAKE_BINARY_DIR}/test_data")
 
-	file(GLOB TEST_SRC "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.hpp")
+	file(GLOB TEST_SRC "${TEST_SRC_DIR}/*.c" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.hpp")
 
 	add_executable(${TEST_NAME} ${TEST_SRC})
+	target_include_directories(${TEST_NAME} PRIVATE ${THIRD_PARTY_DIR})
 	target_link_libraries(${TEST_NAME} ${PROJECT_NAME})
 	set_target_properties(${TEST_NAME} PROPERTIES FOLDER "Tests")
 
