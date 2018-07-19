@@ -1,4 +1,4 @@
-//we only need to read png images
+//we only need to read/write png images
 //#define STBI_NO_PNG
 #define STBI_NO_TGA
 #define STBI_NO_BMP
@@ -15,7 +15,7 @@
 #endif
 
 #define STB_IMAGE_IMPLEMENTATION 1
-//#define STB_IMAGE_WRITE_IMPLEMENTATION 1
+#define STB_IMAGE_WRITE_IMPLEMENTATION 1
 #define STB_DEFINE 1
 
 #if defined(__clang__)
@@ -33,7 +33,7 @@
 
 #include "stb/stb.h"
 #include "stb/stb_image.h"
-//#include "stb/stb_image_write.h"
+#include "stb/stb_image_write.h"
 
 #if defined(__clang__)
 # pragma clang diagnostic pop

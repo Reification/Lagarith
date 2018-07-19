@@ -1,4 +1,8 @@
 #pragma once
 
-extern bool testEncodeDecodeRGB();
-extern bool testEncodeDecodeRGBA();
+#include <functional>
+#include <vector>
+
+using TestFunction = std::function<bool()>;
+
+void registerTests(std::vector<TestFunction>& tests);

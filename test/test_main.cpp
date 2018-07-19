@@ -24,11 +24,14 @@ int main(int argc, const char* argv[]) {
 	int testsRun    = 0;
 	int testsPassed = 0;
 
-	testsPassed += testEncodeDecodeRGB();
-	testsRun++;
+	std::vector<TestFunction> testFunctions;
+	registerTests(testFunctions);
 
-	testsPassed += testEncodeDecodeRGBA();
-	testsRun++;
+	for ( const TestFunction& test : testFunctions )
+	{
+		testsPassed += test();
+		testsRun++;
+	}
 
 	printf("%d/%d tests passed.\n", testsPassed, testsRun);
 

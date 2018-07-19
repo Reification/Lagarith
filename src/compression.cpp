@@ -411,6 +411,7 @@ int CodecInst::CompressRGBA(unsigned int* frameSizeOut) {
 // handed off to other functions depending on the color space and settings
 
 DWORD CodecInst::Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut) {
+	(void)frameNum;
 	in  = (const unsigned char*)src;
 	out = (unsigned char*)dst;
 

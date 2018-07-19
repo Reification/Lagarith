@@ -164,8 +164,6 @@ public:
 	DWORD CompressGetSize(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
 	DWORD Compress(ICCOMPRESS* icinfo, DWORD dwSize);
 
-	DWORD Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut);
-
 	DWORD CompressEnd();
 
 	DWORD DecompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
@@ -181,6 +179,10 @@ public:
 	void EndThreads();
 
 	DWORD CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
+	DWORD Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut);
+
+	DWORD DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
+	DWORD Decompress(int frameNum, const void* src, unsigned int compressedFrameSize, void* dst );
 
 	int CompressRGB24(unsigned int* frameSizeOut);
 	int CompressRGBA(unsigned int* frameSizeOut);
