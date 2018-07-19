@@ -58,32 +58,32 @@ inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str)
 }
 
 #ifdef LAGARITH_RELEASE
-#define lag_aligned_free(ptr, str)                                                                 \
-	{                                                                                                \
-		if (ptr) {                                                                                     \
-			try {                                                                                        \
-				_aligned_free((void*)ptr);                                                                 \
-			} catch (...) {                                                                              \
+#	define lag_aligned_free(ptr, str)                                                               \
+		{                                                                                              \
+			if (ptr) {                                                                                   \
+				try {                                                                                      \
+					_aligned_free((void*)ptr);                                                               \
+				} catch (...) {                                                                            \
+				}                                                                                          \
 			}                                                                                            \
-		}                                                                                              \
-		ptr = NULL;                                                                                    \
-	}
+			ptr = NULL;                                                                                  \
+		}
 #else
-#define lag_aligned_free(ptr, str)                                                                 \
-	{                                                                                                \
-		if (ptr) {                                                                                     \
-			try {                                                                                        \
-				_aligned_free(ptr);                                                                        \
-			} catch (...) {                                                                              \
-				char err_msg[256];                                                                         \
-				sprintf_s(err_msg, 256,                                                                    \
-				          "Error when attempting to free pointer %s, value = 0x%X - file %s line %d", str, \
-				          ptr, __FILE__, __LINE__);                                                        \
-				MessageBox(HWND_DESKTOP, err_msg, "Error", MB_OK | MB_ICONEXCLAMATION);                    \
+#	define lag_aligned_free(ptr, str)                                                               \
+		{                                                                                              \
+			if (ptr) {                                                                                   \
+				try {                                                                                      \
+					_aligned_free(ptr);                                                                      \
+				} catch (...) {                                                                            \
+					char err_msg[256];                                                                       \
+					sprintf_s(err_msg, 256,                                                                  \
+					          "Error when attempting to free pointer %s, value = 0x%X - file %s line %d",    \
+					          str, ptr, __FILE__, __LINE__);                                                 \
+					MessageBox(HWND_DESKTOP, err_msg, "Error", MB_OK | MB_ICONEXCLAMATION);                  \
+				}                                                                                          \
 			}                                                                                            \
-		}                                                                                              \
-		ptr = NULL;                                                                                    \
-	}
+			ptr = NULL;                                                                                  \
+		}
 #endif
 
 // y must be 2^n
@@ -95,7 +95,7 @@ static const DWORD FOURCC_LAGS = mmioFOURCC('L', 'A', 'G', 'S');
 
 // possible frame flags
 
-#define UNCOMPRESSED 1		// Used for debugging
+#define UNCOMPRESSED 1 // Used for debugging
 // RGB24 keyframe with a width that is not a multiple of 4; this has to be handled
 // differently due to the fact that previously, the codec did not remove byte padding to
 // align each scan line. Old versions are decoded as ARITH_RGB24
@@ -182,7 +182,7 @@ public:
 	DWORD Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut);
 
 	DWORD DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
-	DWORD Decompress(int frameNum, const void* src, unsigned int compressedFrameSize, void* dst );
+	DWORD Decompress(int frameNum, const void* src, unsigned int compressedFrameSize, void* dst);
 
 	int CompressRGB24(unsigned int* frameSizeOut);
 	int CompressRGBA(unsigned int* frameSizeOut);

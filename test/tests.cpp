@@ -5,7 +5,7 @@
 #include <memory>
 #include <vector>
 
-// only needed for loading test images.
+// only needed for handling test data - not used for actual codec.
 #include "stb/stb.h"
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
@@ -36,7 +36,8 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, m_width, m_height, m_channels, m_pBits, m_width * m_channels)) {
+		if (stbi_write_png(path, m_width, m_height, (m_channels < 3 ? m_channels : 3), m_pBits,
+		                   m_width * m_channels)) {
 			return true;
 		}
 
@@ -102,7 +103,7 @@ struct RasterSequence {
 		return true;
 	}
 
-	bool Save( const char* format ) {
+	bool Save(const char* format) {
 		char imageName[128];
 
 		for (uint32_t i = 0; i < m_frameCount; i++) {
@@ -166,6 +167,7 @@ static bool testEncodeDecode(int channelCount) {
 	unsigned int         compressedFrameSizes[5] = {};
 	void*                compressedFrames[5]     = {};
 	std::vector<uint8_t> compressedBuf;
+	unsigned int         totalCompressedSize = 0;
 
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
@@ -199,6 +201,7 @@ static bool testEncodeDecode(int channelCount) {
 
 			compressedFrames[i] = pDstBits;
 			pDstBits += compressedFrameSizes[i];
+			totalCompressedSize += compressedFrameSizes[i];
 		}
 
 		pCode->CompressEnd();
@@ -251,6 +254,14 @@ static bool testEncodeDecode(int channelCount) {
 		if (mismatches) {
 			decompressedFrames.Save("decompressed_frame_%02d.png");
 			return false;
+		}
+
+		FILE* fp = nullptr;
+		fopen_s(&fp, "compressed_frames.lags", "wb");
+		if (fp) {
+			fwrite(compressedBuf.data(), totalCompressedSize, 1, fp);
+			fclose(fp);
+			fp = nullptr;
 		}
 	}
 
