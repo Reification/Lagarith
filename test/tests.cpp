@@ -51,6 +51,10 @@ struct Raster {
 			m_width    = w;
 			m_height   = h;
 			m_channels = c;
+			// when decompressing target image can need extra space (I didn't write the damn thing)
+			if (c & 3) {
+				sizeBytes = (((w + 3) >> 2) << 2) * h * c;
+			}
 			m_pBits    = new stbi_uc[sizeBytes];
 			m_alloced  = true;
 		}
@@ -243,16 +247,24 @@ static bool testEncodeDecode(int channelCount) {
 		int mismatches = 0;
 
 		for (int i = 0; i < srcFrames.GetFrameCount(); i++) {
-			const void* pOrigBits      = srcFrames.GetBits(i);
-			const void* pRoundTripBits = decompressedFrames.GetBits(i);
+			const stbi_uc* pOrigBits      = srcFrames.GetBits(i);
+			const stbi_uc* pRoundTripBits = decompressedFrames.GetBits(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
 				fprintf(stderr, "Frame %d failed lossless reconstruction.\n", i);
+				char imageName[128];
+				sprintf_s(imageName, "mismatched_frame_%02d.png", i);
+				Raster diff;
+				diff.Alloc(srcFrames.GetWidth(), srcFrames.GetHeight(), srcFrames.GetChannels());
+				stbi_uc* pDiff = diff.m_pBits;
+				for (uint32_t p = 0; p < inputFrameSize; p++) {
+					pDiff[p] = (stbi_uc)(pRoundTripBits[p] - pOrigBits[p]);
+				}
+				diff.Save(imageName);
 				mismatches++;
 			}
 		}
 
 		if (mismatches) {
-			decompressedFrames.Save("decompressed_frame_%02d.png");
 			return false;
 		}
 
@@ -272,7 +284,6 @@ static bool testEncodeDecode(int channelCount) {
 	return true;
 }
 
-// 3-channel data not reliable (non-4-byte-aligned size issues)
 bool testEncodeDecodeRGB() {
 	if (testEncodeDecode(3)) {
 		printf("testEncodeDecodeRGB passed.\n");
@@ -292,5 +303,7 @@ bool testEncodeDecodeRGBX() {
 }
 
 void registerTests(std::vector<TestFunction>& tests) {
+	//decompressing 24 bit images with non multiple of 4 line widths has bugs.
+	//tests.push_back(&testEncodeDecodeRGB);
 	tests.push_back(&testEncodeDecodeRGBX);
 }
