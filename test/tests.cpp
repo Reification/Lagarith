@@ -36,7 +36,7 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, m_width, m_height, (m_channels < 3 ? m_channels : 3), m_pBits,
+		if (stbi_write_png(path, m_width, m_height, m_channels, m_pBits,
 		                   m_width * m_channels)) {
 			return true;
 		}
@@ -256,6 +256,9 @@ static bool testEncodeDecode(int channelCount) {
 			return false;
 		}
 
+#if 0
+		decompressedFrames.Save("decompressed_frame_%02d.png");
+
 		FILE* fp = nullptr;
 		fopen_s(&fp, "compressed_frames.lags", "wb");
 		if (fp) {
@@ -263,6 +266,7 @@ static bool testEncodeDecode(int channelCount) {
 			fclose(fp);
 			fp = nullptr;
 		}
+#endif // 0
 	}
 
 	return true;
