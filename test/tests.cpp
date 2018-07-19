@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <memory>
+#include <vector>
 
 // only needed for loading test images.
 #include "stb/stb.h"
@@ -37,16 +38,31 @@ struct Raster {
 struct RasterSequence {
 	bool load(int channels, const char* format, int first, int last, int step = 1) {
 		char imageName[128];
-		int j = first;
+		int  j   = first;
 		int  end = last + step;
-		
+
+		m_frameCount = 0;
+		for (uint32_t i = 0; i < (sizeof(m_frames) / sizeof(m_frames[0])); i++) {
+			m_frames[i].free();
+		}
+
 		for (uint32_t i = 0; i < (sizeof(m_frames) / sizeof(m_frames[0])) && (j != end);
 		     i++, j += step) {
 			sprintf_s(imageName, format, j);
 			if (!m_frames[i].load(imageName, channels)) {
 				fprintf(stderr, "failed loading image %s.\n", imageName);
+				m_frameCount = 0;
 				return false;
 			}
+
+			if (i && (m_frames[i].m_width != m_frames[0].m_width ||
+			          m_frames[i].m_height != m_frames[0].m_height)) {
+				fprintf(stderr, "image %s does not match frame 0 dimensions.\n", imageName);
+				m_frameCount = 0;
+				return false;
+			}
+
+			m_frameCount++;
 		}
 
 		if (j != end) {
@@ -55,23 +71,82 @@ struct RasterSequence {
 
 		return true;
 	}
+
+	int      GetWidth() const { return m_frames[0].m_width; }
+	int      GetHeight() const { return m_frames[0].m_height; }
+	int      GetChannels() const { return m_frames[0].m_channels; }
+	stbi_uc* GetBits(int frameIdx) const {
+		return frameIdx < m_frameCount ? m_frames[frameIdx].m_pBits : nullptr;
+	}
+	unsigned int GetFrameSize() const { return GetWidth() * GetHeight() * GetChannels(); }
+	unsigned int GetSequenceSize() const { return GetFrameSize() * m_frameCount; }
+
+	int    m_frameCount = 0;
 	Raster m_frames[5];
 };
 
-bool testEncodeDecodeRGB() {
+static bool testEncodeDecode(int channelCount) {
 	std::unique_ptr<CodecInst> pCode(new CodecInst());
 	RasterSequence             testFrames;
-	if (!testFrames.load(3, "frame_%02d.png", 0, 4)) {
+	int                        err = 0;
+
+	if (!testFrames.load(channelCount, "frame_%02d.png", 0, 4)) {
 		return false;
 	}
+
+	pCode->multithreading = true;
+	pCode->use_alpha      = false;
+
+	err = pCode->CompressBegin(testFrames.GetWidth(), testFrames.GetHeight(), testFrames.GetChannels() * 8);
+
+	if (err) {
+		fprintf(stderr, "CompressBegin failed with err %d\n", err);
+		return false;
+	}
+
+	const void*          pSrcBits            = nullptr;
+	int                  i                   = 0;
+	unsigned int         frameSizes[5]       = {};
+	void*                compressedFrames[5] = {};
+	std::vector<uint8_t> compressedBuf;
+
+	const unsigned int inputFrameSize = testFrames.GetFrameSize();
+	compressedBuf.resize((size_t)(inputFrameSize * testFrames.m_frameCount *  1.1));
+
+	uint8_t* pDstBits = compressedBuf.data();
+
+	for (; !!(pSrcBits = testFrames.GetBits(i)); i++) {
+		err = pCode->Compress(i, pSrcBits, pDstBits, &(frameSizes[i]));
+
+		if (err) {
+			fprintf(stderr, "Compress failed with err %d\n", err);
+			pCode->CompressEnd();
+			return false;
+		}
+
+		compressedFrames[i] = pDstBits;
+		pDstBits += frameSizes[i];
+	}
+
+	pCode->CompressEnd();
+
+	return true;
+}
+
+bool testEncodeDecodeRGB() {
+	if (testEncodeDecode(3)) {
+		printf("testEncodeDecodeRGB passed.\n");
+		return true;
+	}
+
 	return false;
 }
 
 bool testEncodeDecodeRGBA() {
-	std::unique_ptr<CodecInst> pCode(new CodecInst());
-	RasterSequence             testFrames;
-	if (!testFrames.load(4, "frame_%02d.png", 0, 4)) {
-		return false;
+	if (testEncodeDecode(4)) {
+		printf("testEncodeDecodeRGBA passed.\n");
+		return true;
 	}
+
 	return false;
 }

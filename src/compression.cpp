@@ -21,21 +21,30 @@
 #include "threading.h"
 #include <float.h>
 
-// initalize the codec for compression
 DWORD CodecInst::CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut) {
 	if (started == 0x1337) {
 		CompressEnd();
 	}
 	started = 0;
 
-	if (int error = CompressQuery(lpbiIn, lpbiOut) != ICERR_OK) {
+	const int error = CompressQuery(lpbiIn, lpbiOut);
+	if (error != ICERR_OK) {
 		return error;
 	}
 
-	width  = lpbiIn->biWidth;
-	height = lpbiIn->biHeight;
+	return CompressBegin(lpbiIn->biWidth, lpbiIn->biHeight, lpbiIn->biBitCount);
+}
+// initalize the codec for compression
+DWORD CodecInst::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerChannel) {
+	if (started == 0x1337) {
+		CompressEnd();
+	}
+	started = 0;
 
-	format = lpbiIn->biBitCount;
+	width  = w;
+	height = h;
+	format = bitsPerChannel;
+
 	length = width * height * format / 8;
 
 	unsigned int buffer_size;
@@ -240,13 +249,13 @@ unsigned int CodecInst::HandleThreeCompressionThreads(unsigned int chan_size) {
 }
 
 // Encode a typical RGB24 frame, input can be RGB24 or RGB32
-int CodecInst::CompressRGB24(ICCOMPRESS* icinfo) {
+int CodecInst::CompressRGB24(unsigned int* frameSizeOut) {
 	//const unsigned char* src       = in;
-	const unsigned int   pixels    = width * height;
-	const unsigned int   block_len = align_round(pixels + 32, 16);
-	unsigned char*       bplane    = buffer;
-	unsigned char*       gplane    = buffer + block_len;
-	unsigned char*       rplane    = buffer + block_len * 2;
+	const unsigned int pixels    = width * height;
+	const unsigned int block_len = align_round(pixels + 32, 16);
+	unsigned char*     bplane    = buffer;
+	unsigned char*     gplane    = buffer + block_len;
+	unsigned char*     rplane    = buffer + block_len * 2;
 
 
 	// convert the interleaved channels to planer, aligning if needed
@@ -320,19 +329,19 @@ int CodecInst::CompressRGB24(ICCOMPRESS* icinfo) {
 		}
 	}
 
-	icinfo->lpbiOutput->biSizeImage = size;
+	*frameSizeOut = size;
 	return ICERR_OK;
 }
 
 // Compress an RGBA frame (alpha compression is enabled and the input is RGB32)
-int CodecInst::CompressRGBA(ICCOMPRESS* icinfo) {
+int CodecInst::CompressRGBA(unsigned int* frameSizeOut) {
 	//const unsigned char* src       = in;
-	const unsigned int   pixels    = width * height;
-	const unsigned int   block_len = align_round(pixels + 32, 16);
-	unsigned char*       bplane    = buffer;
-	unsigned char*       gplane    = buffer + block_len;
-	unsigned char*       rplane    = buffer + block_len * 2;
-	unsigned char*       aplane    = buffer + block_len * 3;
+	const unsigned int pixels    = width * height;
+	const unsigned int block_len = align_round(pixels + 32, 16);
+	unsigned char*     bplane    = buffer;
+	unsigned char*     gplane    = buffer + block_len;
+	unsigned char*     rplane    = buffer + block_len * 2;
+	unsigned char*     aplane    = buffer + block_len * 3;
 
 	// convert the interleaved channels to planer
 	Decorrilate_And_Split_RGBA(in, rplane, gplane, bplane, aplane, width, height, &performance);
@@ -394,12 +403,76 @@ int CodecInst::CompressRGBA(ICCOMPRESS* icinfo) {
 		size   = 5;
 	}
 
-	icinfo->lpbiOutput->biSizeImage = size;
+	*frameSizeOut = size;
 	return ICERR_OK;
 }
 
 // called to compress a frame; the actual compression will be
 // handed off to other functions depending on the color space and settings
+
+DWORD CodecInst::Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut) {
+	in  = (const unsigned char*)src;
+	out = (unsigned char*)dst;
+
+	assert(width && height && format);
+
+#if 0
+	if (frameNum == 0) {
+		if (started != 0x1337) {
+			if (int error = CompressBegin(icinfo->lpbiInput, icinfo->lpbiOutput) != ICERR_OK)
+				return error;
+		}
+	} else
+#endif
+	if (nullframes) {
+		// compare in two parts, video is probably more likely to change in middle than at bottom
+		unsigned int pos = length / 2 + 15;
+		pos &= (~15);
+		if (!memcmp(in + pos, prev + pos, length - pos) && !memcmp(in, prev, pos)) {
+			frameSizeOut = 0;
+			return ICERR_OK;
+		}
+	}
+
+	// TMPGEnc (and probably some other programs) like to change the floating point
+	// precision. This can occasionally produce rounding errors when scaling the probablity
+	// ranges to a power of 2, which in turn produces corrupted video. Here the code checks
+	// the FPU control word and sets the precision correctly if needed.
+#if USE_CONTROL_FP
+	unsigned int fpuword = _controlfp(0, 0);
+	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
+		_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
+#	ifndef LAGARITH_RELEASE
+		static bool firsttime = true;
+		if (firsttime) {
+			firsttime = false;
+			MessageBox(HWND_DESKTOP, "Floating point control word is not set correctly, correcting it",
+			           "Error", MB_OK | MB_ICONEXCLAMATION);
+		}
+#	endif
+	}
+#endif
+
+	int ret_val;
+
+	if (format == RGB24 || (format == RGB32 && !use_alpha)) {
+		ret_val = CompressRGB24(frameSizeOut);
+	} else {
+		ret_val = CompressRGBA(frameSizeOut);
+	}
+
+	if (nullframes) {
+		memcpy(prev, in, length);
+	}
+
+#if USE_CONTROL_FP
+	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
+		_controlfp(fpuword, _MCW_PC | _MCW_RC);
+	}
+#endif
+
+	return (DWORD)ret_val;
+}
 
 DWORD CodecInst::Compress(ICCOMPRESS* icinfo, DWORD dwSize) {
 	out = (unsigned char*)icinfo->lpOutput;
@@ -428,26 +501,30 @@ DWORD CodecInst::Compress(ICCOMPRESS* icinfo, DWORD dwSize) {
 	// precision. This can occasionally produce rounding errors when scaling the probablity
 	// ranges to a power of 2, which in turn produces corrupted video. Here the code checks
 	// the FPU control word and sets the precision correctly if needed.
+#if USE_CONTROL_FP
 	unsigned int fpuword = _controlfp(0, 0);
 	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
 		_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#ifndef LAGARITH_RELEASE
+#	ifndef LAGARITH_RELEASE
 		static bool firsttime = true;
 		if (firsttime) {
 			firsttime = false;
 			MessageBox(HWND_DESKTOP, "Floating point control word is not set correctly, correcting it",
 			           "Error", MB_OK | MB_ICONEXCLAMATION);
 		}
-#endif
+#	endif
 	}
+#endif
 
-	int ret_val;
+	int          ret_val;
+	unsigned int frameSize = 0;
 
 	if (format == RGB24 || (format == RGB32 && !use_alpha)) {
-		ret_val = CompressRGB24(icinfo);
+		ret_val = CompressRGB24(&frameSize);
 	} else {
-		ret_val = CompressRGBA(icinfo);
+		ret_val = CompressRGBA(&frameSize);
 	}
+	icinfo->dwFrameSize = frameSize;
 
 	if (nullframes) {
 		memcpy(prev, in, length);
@@ -457,9 +534,11 @@ DWORD CodecInst::Compress(ICCOMPRESS* icinfo, DWORD dwSize) {
 		*icinfo->lpdwFlags = AVIIF_KEYFRAME;
 	}
 
+#if USE_CONTROL_FP
 	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
 		_controlfp(fpuword, _MCW_PC | _MCW_RC);
 	}
+#endif
 
 	return (DWORD)ret_val;
 }

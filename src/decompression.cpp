@@ -345,18 +345,20 @@ DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
 	// ranges to a power of 2, which in turn produces corrupted video. Here the code checks
 	// the FPU control word and sets the precision correctly if needed.
 
+#if USE_CONTROL_FP
 	unsigned int fpuword = _controlfp(0, 0);
 	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
 		_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#ifndef LAGARITH_RELEASE
+#	ifndef LAGARITH_RELEASE
 		static bool firsttime = true;
 		if (firsttime) {
 			firsttime = false;
 			MessageBox(HWND_DESKTOP, "Floating point control word is not set correctly, correcting it",
 			           "Error", MB_OK | MB_ICONEXCLAMATION);
 		}
-#endif
+#	endif
 	}
+#endif // USE_CONTROL_FP
 
 	switch (in[0]) {
 	case ARITH_RGB24: ArithRGBDecompress(); break;
@@ -397,9 +399,11 @@ DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
 		break;
 	}
 
+#if USE_CONTROL_FP
 	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
 		_controlfp(fpuword, _MCW_PC | _MCW_RC);
 	}
+#endif
 
 	return return_code;
 	//} catch ( ... ){

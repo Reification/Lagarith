@@ -30,6 +30,8 @@
 
 extern bool SSSE3;
 
+#define USE_CONTROL_FP 0
+
 #define LAGARITH_RELEASE // if this is a version to release, disables all debugging info
 
 inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str) {
@@ -161,6 +163,9 @@ public:
 	DWORD CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
 	DWORD CompressGetSize(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
 	DWORD Compress(ICCOMPRESS* icinfo, DWORD dwSize);
+
+	DWORD Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut);
+
 	DWORD CompressEnd();
 
 	DWORD DecompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
@@ -175,8 +180,11 @@ public:
 	int  InitThreads(int encode);
 	void EndThreads();
 
-	int          CompressRGB24(ICCOMPRESS* icinfo);
-	int          CompressRGBA(ICCOMPRESS* icinfo);
+	DWORD CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
+
+	int CompressRGB24(unsigned int* frameSizeOut);
+	int CompressRGBA(unsigned int* frameSizeOut);
+
 	unsigned int HandleTwoCompressionThreads(unsigned int chan_size);
 	unsigned int HandleThreeCompressionThreads(unsigned int chan_size);
 
