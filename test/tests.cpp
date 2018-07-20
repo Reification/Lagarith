@@ -10,6 +10,8 @@
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 
+#define DUMP_INTERMED_DATA 0
+
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
 	int      m_width    = 0;
@@ -36,8 +38,7 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, m_width, m_height, m_channels, m_pBits,
-		                   m_width * m_channels)) {
+		if (stbi_write_png(path, m_width, m_height, m_channels, m_pBits, m_width * m_channels)) {
 			return true;
 		}
 
@@ -55,8 +56,8 @@ struct Raster {
 			if (c & 3) {
 				sizeBytes = (((w + 3) >> 2) << 2) * h * c;
 			}
-			m_pBits    = new stbi_uc[sizeBytes];
-			m_alloced  = true;
+			m_pBits   = new stbi_uc[sizeBytes];
+			m_alloced = true;
 		}
 	}
 
@@ -180,7 +181,6 @@ static bool testEncodeDecode(int channelCount) {
 		std::unique_ptr<CodecInst> pCode(new CodecInst());
 
 		pCode->multithreading = true;
-		pCode->use_alpha      = false;
 
 		err = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                           srcFrames.GetChannels() * 8);
@@ -209,6 +209,10 @@ static bool testEncodeDecode(int channelCount) {
 		}
 
 		pCode->CompressEnd();
+
+		printf("Original size: %d bytes. Total compressed size: %d bytes. compression factor: %g\n",
+		       srcFrames.GetSequenceSizeBytes(), totalCompressedSize,
+		       (double)totalCompressedSize / (double)srcFrames.GetSequenceSizeBytes());
 	}
 
 	// decode execution
@@ -216,7 +220,6 @@ static bool testEncodeDecode(int channelCount) {
 		std::unique_ptr<CodecInst> pCode(new CodecInst());
 
 		pCode->multithreading = true;
-		pCode->use_alpha      = false;
 
 		err = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                             srcFrames.GetChannels() * 8);
@@ -268,7 +271,7 @@ static bool testEncodeDecode(int channelCount) {
 			return false;
 		}
 
-#if 0
+#if DUMP_INTERMED_DATA
 		decompressedFrames.Save("decompressed_frame_%02d.png");
 
 		FILE* fp = nullptr;
@@ -278,7 +281,7 @@ static bool testEncodeDecode(int channelCount) {
 			fclose(fp);
 			fp = nullptr;
 		}
-#endif // 0
+#endif
 	}
 
 	return true;
