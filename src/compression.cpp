@@ -102,6 +102,9 @@ DWORD CodecInst::CompressEnd() {
 	return ICERR_OK;
 }
 
+// see this doc entry for setting thread priority of std::thread using native handle + pthreads.
+// https://en.cppreference.com/w/cpp/thread/thread/native_handle
+
 unsigned int CodecInst::HandleTwoCompressionThreads(unsigned int chan_size) {
 	unsigned int channel_sizes[3];
 	channel_sizes[0] = chan_size;
