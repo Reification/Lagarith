@@ -51,7 +51,12 @@ if(BUILD_TEST)
 
 	file(GLOB TEST_SRC "${TEST_SRC_DIR}/*.c" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.hpp")
 
-	add_executable(${TEST_NAME} ${TEST_SRC})
+	if(BUILD_TEST_AS_LIB)
+		add_library(${TEST_NAME} SHARED ${TEST_SRC})
+	else()
+		add_executable(${TEST_NAME} ${TEST_SRC})
+	endif()
+
 	target_include_directories(${TEST_NAME} PRIVATE ${THIRD_PARTY_DIR})
 	target_link_libraries(${TEST_NAME} ${PROJECT_NAME})
 	set_target_properties(${TEST_NAME} PROPERTIES FOLDER "Tests")

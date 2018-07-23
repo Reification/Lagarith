@@ -16,7 +16,6 @@
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 #include "compact.h"
 #include "lagarith.h"
-#include "interface.h"
 #include "prediction.h"
 #include "threading.h"
 #include <float.h>
@@ -32,48 +31,6 @@ DWORD CodecInst::DecompressBegin(unsigned int w, unsigned int h, unsigned int bi
 	width  = w;
 	height = h;
 	format = bitsPerPixel;
-
-	length = width * height * format / 8;
-
-	buffer_size = length + 2048;
-	if (format >= RGB24) {
-		buffer_size = align_round(width * 4, 8) * height + 2048;
-	}
-
-	buffer  = (unsigned char*)lag_aligned_malloc(buffer, buffer_size, 16, "buffer");
-	buffer2 = (unsigned char*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
-
-	if (!buffer || !buffer2) {
-		return ICERR_MEMORY;
-	}
-
-	if (multithreading) {
-		int code = InitThreads(false);
-		if (code != ICERR_OK) {
-			return code;
-		}
-	}
-	started = 0x1337;
-	return ICERR_OK;
-}
-
-// initalize the codec for decompression
-DWORD CodecInst::DecompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut) {
-	if (started == 0x1337) {
-		DecompressEnd();
-	}
-	started = 0;
-
-	if (int error = DecompressQuery(lpbiIn, lpbiOut) != ICERR_OK) {
-		return error;
-	}
-
-	int buffer_size;
-
-	width  = lpbiIn->biWidth;
-	height = lpbiIn->biHeight;
-
-	format = lpbiOut->biBitCount;
 
 	length = width * height * format / 8;
 
@@ -184,15 +141,10 @@ void CodecInst::ArithRGBDecompress() {
 
 	Decode3Channels(bdst, pixels, gdst, pixels, rdst, pixels);
 
-	if ((width & 3) == 0 || in[0] == UNALIGNED_RGB24) {
-		if (format == RGB24) {
-			Interleave_And_Restore_RGB24(out, rdst, gdst, bdst, width, height, &performance);
-		} else {
-			Interleave_And_Restore_RGB32(out, rdst, gdst, bdst, width, height, &performance);
-		}
+	if (format == RGB24) {
+		Interleave_And_Restore_RGB24(out, rdst, gdst, bdst, width, height);
 	} else {
-		Interleave_And_Restore_Old_Unaligned(bdst, gdst, rdst, out, buffer2, (format == RGB24), width,
-		                                     height);
+		Interleave_And_Restore_RGB32(out, rdst, gdst, bdst, width, height);
 	}
 }
 
@@ -302,55 +254,32 @@ void CodecInst::ArithRGBADecompress() {
 	}
 
 	if (format == RGB24) {
-		Interleave_And_Restore_RGB24(out, rdst, gdst, bdst, width, height, &performance);
+		Interleave_And_Restore_RGB24(out, rdst, gdst, bdst, width, height);
 	} else {
-		Interleave_And_Restore_RGBA(out, rdst, gdst, bdst, adst, width, height, &performance);
+		Interleave_And_Restore_RGBA(out, rdst, gdst, bdst, adst, width, height);
 	}
 }
 
-DWORD CodecInst::Decompress(int frameNum, const void* src, unsigned int compressedFrameSize,
-                            void* dst) {
-	(void)frameNum;
-	//	try {
-	assert(width && height);
-
-#if 0
-	if (started != 0x1337) {
-		DecompressBegin(icinfo->lpbiInput, icinfo->lpbiOutput);
-	}
-#endif
-
+DWORD CodecInst::Decompress(const void* src, unsigned int compressedFrameSize, void* dst) {
+	assert(width && height && compressedFrameSize && src && dst && "decompression not started or invalid frame parameters!");
 
 	DWORD return_code = ICERR_OK;
 	out               = (unsigned char*)dst;
 	in                = (const unsigned char*)src;
 	compressed_size   = compressedFrameSize;
 
-	// according to the avi specs, the calling application is responsible for handling null frames.
 	if (compressed_size == 0) {
-#ifndef LAGARITH_RELEASE
-		MessageBox(HWND_DESKTOP, "Received request to decode a null frame", "Error",
-		           MB_OK | MB_ICONEXCLAMATION);
-#endif
 		return ICERR_OK;
 	}
+
 	if (compressed_size <= 21) {
 		bool         solid = false;
-		unsigned int r = 0, g = 0, b = 0, a = 255;
-		if ((in[0] == ARITH_RGB24 || in[0] == UNALIGNED_RGB24) && compressed_size == 15) {
+		unsigned int r = 0, g = 0, b = 0;
+		if (in[0] == ARITH_RGB24 && compressed_size == 15) {
 			// solid frame that wasn't caught by old memcmp logic
 			b = in[10];
 			g = in[12];
 			r = in[14];
-			b += g;
-			r += g;
-			solid = true;
-		} else if (in[0] == ARITH_ALPHA && compressed_size == 21) {
-			// solid frame that wasn't caught by old memcmp logic
-			b = in[14];
-			g = in[16];
-			r = in[18];
-			a = in[20];
 			b += g;
 			r += g;
 			solid = true;
@@ -362,68 +291,34 @@ DWORD CodecInst::Decompress(int frameNum, const void* src, unsigned int compress
 			g     = in[2];
 			r     = in[3];
 			solid = true;
-		} else if (in[0] == PIXELFRAME_ALPHA) {
-			b     = in[1];
-			g     = in[2];
-			r     = in[3];
-			a     = in[4];
-			solid = true;
 		}
 		if (solid) {
 			if (format == RGB24) {
 				SetSolidFrameRGB24(r, g, b);
 			} else {
-				SetSolidFrameRGB32(r, g, b, a);
+				SetSolidFrameRGB32(r, g, b, 0xff);
 			}
 			return ICERR_OK;
 		}
 	}
 
-	// TMPGEnc (and probably some other programs) like to change the floating point
-	// precision. This can occasionally produce rounding errors when scaling the probablity
-	// ranges to a power of 2, which in turn produces corrupted video. Here the code checks
-	// the FPU control word and sets the precision correctly if needed.
-
-#if USE_CONTROL_FP
-	unsigned int fpuword = _controlfp(0, 0);
-	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
-		_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#	ifndef LAGARITH_RELEASE
-		static bool firsttime = true;
-		if (firsttime) {
-			firsttime = false;
-			MessageBox(HWND_DESKTOP, "Floating point control word is not set correctly, correcting it",
-			           "Error", MB_OK | MB_ICONEXCLAMATION);
-		}
-#	endif
-	}
-#endif // USE_CONTROL_FP
-
 	switch (in[0]) {
 	case ARITH_RGB24: ArithRGBDecompress(); break;
-	case ARITH_ALPHA: ArithRGBADecompress(); break;
-	case UNALIGNED_RGB24: ArithRGBDecompress(); break;
 	// redundant check just in case size is incorrect
 	case BYTEFRAME:
-	case PIXELFRAME:
-	case PIXELFRAME_ALPHA: {
-		unsigned int r = 0, g = 0, b = 0, a = 255;
+	case PIXELFRAME: {
+		unsigned int r = 0, g = 0, b = 0;
 		if (in[0] == BYTEFRAME) {
 			b = g = r = in[1];
 		} else if (in[0] == PIXELFRAME) {
 			b = in[1];
 			g = in[2];
 			r = in[3];
-		} else if (in[0] == PIXELFRAME_ALPHA) {
-			b = in[1];
-			g = in[2];
-			r = in[3];
-			a = in[4];
 		}
 		if (format == RGB24) {
 			SetSolidFrameRGB24(r, g, b);
 		} else {
-			SetSolidFrameRGB32(r, g, b, a);
+			SetSolidFrameRGB32(r, g, b, 0xff);
 		}
 	} break;
 
@@ -438,158 +333,5 @@ DWORD CodecInst::Decompress(int frameNum, const void* src, unsigned int compress
 		break;
 	}
 
-#if USE_CONTROL_FP
-	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
-		_controlfp(fpuword, _MCW_PC | _MCW_RC);
-	}
-#endif
-
 	return return_code;
-	//} catch ( ... ){
-	//	MessageBox (HWND_DESKTOP, "Exception caught in decompress main", "Error", MB_OK | MB_ICONEXCLAMATION);
-	//	return ICERR_INTERNAL;
-	//}
 }
-
-
-// Called to decompress a frame, the actual decompression will be
-// handed off to other functions based on the frame type.
-DWORD CodecInst::Decompress(ICDECOMPRESS* icinfo, DWORD dwSize) {
-	//	try {
-
-	DWORD return_code = ICERR_OK;
-	if (started != 0x1337) {
-		DecompressBegin(icinfo->lpbiInput, icinfo->lpbiOutput);
-	}
-	out                             = (unsigned char*)icinfo->lpOutput;
-	in                              = (unsigned char*)icinfo->lpInput;
-	icinfo->lpbiOutput->biSizeImage = length;
-
-	compressed_size = icinfo->lpbiInput->biSizeImage;
-
-	// according to the avi specs, the calling application is responsible for handling null frames.
-	if (compressed_size == 0) {
-#ifndef LAGARITH_RELEASE
-		MessageBox(HWND_DESKTOP, "Received request to decode a null frame", "Error",
-		           MB_OK | MB_ICONEXCLAMATION);
-#endif
-		return ICERR_OK;
-	}
-	if (compressed_size <= 21) {
-		bool         solid = false;
-		unsigned int r = 0, g = 0, b = 0, a = 255;
-		if ((in[0] == ARITH_RGB24 || in[0] == UNALIGNED_RGB24) && compressed_size == 15) {
-			// solid frame that wasn't caught by old memcmp logic
-			b = in[10];
-			g = in[12];
-			r = in[14];
-			b += g;
-			r += g;
-			solid = true;
-		} else if (in[0] == ARITH_ALPHA && compressed_size == 21) {
-			// solid frame that wasn't caught by old memcmp logic
-			b = in[14];
-			g = in[16];
-			r = in[18];
-			a = in[20];
-			b += g;
-			r += g;
-			solid = true;
-		} else if (in[0] == BYTEFRAME) {
-			b = g = r = in[1];
-			solid     = true;
-		} else if (in[0] == PIXELFRAME) {
-			b     = in[1];
-			g     = in[2];
-			r     = in[3];
-			solid = true;
-		} else if (in[0] == PIXELFRAME_ALPHA) {
-			b     = in[1];
-			g     = in[2];
-			r     = in[3];
-			a     = in[4];
-			solid = true;
-		}
-		if (solid) {
-			if (format == RGB24) {
-				SetSolidFrameRGB24(r, g, b);
-			} else {
-				SetSolidFrameRGB32(r, g, b, a);
-			}
-			return ICERR_OK;
-		}
-	}
-
-	// TMPGEnc (and probably some other programs) like to change the floating point
-	// precision. This can occasionally produce rounding errors when scaling the probablity
-	// ranges to a power of 2, which in turn produces corrupted video. Here the code checks
-	// the FPU control word and sets the precision correctly if needed.
-
-#if USE_CONTROL_FP
-	unsigned int fpuword = _controlfp(0, 0);
-	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
-		_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#	ifndef LAGARITH_RELEASE
-		static bool firsttime = true;
-		if (firsttime) {
-			firsttime = false;
-			MessageBox(HWND_DESKTOP, "Floating point control word is not set correctly, correcting it",
-			           "Error", MB_OK | MB_ICONEXCLAMATION);
-		}
-#	endif
-	}
-#endif // USE_CONTROL_FP
-
-	switch (in[0]) {
-	case ARITH_RGB24: ArithRGBDecompress(); break;
-	case ARITH_ALPHA: ArithRGBADecompress(); break;
-	case UNALIGNED_RGB24: ArithRGBDecompress(); break;
-	// redundant check just in case size is incorrect
-	case BYTEFRAME:
-	case PIXELFRAME:
-	case PIXELFRAME_ALPHA: {
-		unsigned int r = 0, g = 0, b = 0, a = 255;
-		if (in[0] == BYTEFRAME) {
-			b = g = r = in[1];
-		} else if (in[0] == PIXELFRAME) {
-			b = in[1];
-			g = in[2];
-			r = in[3];
-		} else if (in[0] == PIXELFRAME_ALPHA) {
-			b = in[1];
-			g = in[2];
-			r = in[3];
-			a = in[4];
-		}
-		if (format == RGB24) {
-			SetSolidFrameRGB24(r, g, b);
-		} else {
-			SetSolidFrameRGB32(r, g, b, a);
-		}
-	} break;
-
-	case UNCOMPRESSED: memcpy(out, in + 1, length); break;
-	default:
-#ifndef LAGARITH_RELEASE
-		char emsg[128];
-		sprintf_s(emsg, 128, "Unrecognized frame type: %d", in[0]);
-		MessageBox(HWND_DESKTOP, emsg, "Error", MB_OK | MB_ICONEXCLAMATION);
-#endif
-		return_code = ICERR_ERROR;
-		break;
-	}
-
-#if USE_CONTROL_FP
-	if (!(fpuword & _PC_53) || (fpuword & _MCW_RC)) {
-		_controlfp(fpuword, _MCW_PC | _MCW_RC);
-	}
-#endif
-
-	return return_code;
-	//} catch ( ... ){
-	//	MessageBox (HWND_DESKTOP, "Exception caught in decompress main", "Error", MB_OK | MB_ICONEXCLAMATION);
-	//	return ICERR_INTERNAL;
-	//}
-}
-
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);

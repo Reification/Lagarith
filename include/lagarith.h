@@ -28,10 +28,6 @@
 #include <assert.h>
 #include "prediction.h"
 
-extern bool SSSE3;
-
-#define USE_CONTROL_FP 0
-
 #define LAGARITH_RELEASE // if this is a version to release, disables all debugging info
 
 inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str) {
@@ -96,96 +92,53 @@ static const DWORD FOURCC_LAGS = mmioFOURCC('L', 'A', 'G', 'S');
 // possible frame flags
 
 #define UNCOMPRESSED 1 // Used for debugging
-// RGB24 keyframe with a width that is not a multiple of 4; this has to be handled
-// differently due to the fact that previously, the codec did not remove byte padding to
-// align each scan line. Old versions are decoded as ARITH_RGB24
-#define UNALIGNED_RGB24 2
 #define ARITH_RGB24 4      // Standard RGB24 keyframe frame
 #define BYTEFRAME 5        // solid greyscale color frame
 #define PIXELFRAME 6       // solid non-greyscale color frame
-#define ARITH_ALPHA 8      // Standard RGBA keyframe frame
-#define PIXELFRAME_ALPHA 9 // RGBA pixel frame
 
 // possible colorspaces
 #define RGB24 24
 #define RGB32 32
 
 struct ThreadData {
-	volatile const unsigned char* source;
-	volatile unsigned char*       dest;
-	volatile unsigned char*       buffer;
-	volatile unsigned int         width;
-	volatile unsigned int         height;
-	volatile unsigned int         format;
-	volatile unsigned int         length; // uncompressed data length
-	volatile unsigned int         size;   // compressed data length
-	volatile HANDLE               thread;
-	volatile HANDLE               StartEvent;
-	volatile HANDLE               DoneEvent;
-	unsigned int                  priority;
+	volatile const unsigned char* source = nullptr;
+	volatile unsigned char*       dest = nullptr;
+	volatile unsigned char*       buffer = nullptr;
+	volatile unsigned int         width = 0;
+	volatile unsigned int         height = 0;
+	volatile unsigned int         format = 0;
+	volatile unsigned int         length = 0; // uncompressed data length
+	volatile unsigned int         size = 0;   // compressed data length
+	volatile HANDLE               thread = NULL;
+	volatile HANDLE               StartEvent = NULL;
+	volatile HANDLE               DoneEvent  = NULL;
+	unsigned int                  priority = 0;
 	CompressClass                 cObj;
 };
 
 class CodecInst {
 public:
-	//if the codec has been properly initalized yet
-	int                  started;
-	unsigned char*       buffer;
-	unsigned char*       prev;
-	const unsigned char* in;
-	unsigned char*       out;
-	unsigned char*       buffer2;
-
-	unsigned int length;
-	unsigned int width;
-	unsigned int height;
-	//input format for compressing, output format for decompression. Also the bitdepth.
-	unsigned int format;
-
-	bool          nullframes;
-	bool          use_alpha;
-	bool          multithreading;
-	CompressClass cObj;
-	unsigned int  compressed_size;
-	ThreadData    threads[3];
-
-	Performance performance;
-
 	CodecInst();
 	~CodecInst();
 
-	DWORD GetState(LPVOID pv, DWORD dwSize);
-	DWORD SetState(LPVOID pv, DWORD dwSize);
-	DWORD GetInfo(ICINFO* icinfo, DWORD dwSize);
-
-	DWORD CompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD CompressGetFormat(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD CompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD CompressGetSize(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD Compress(ICCOMPRESS* icinfo, DWORD dwSize);
-
-	DWORD CompressEnd();
-
-	DWORD DecompressQuery(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD DecompressGetFormat(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD DecompressBegin(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD Decompress(ICDECOMPRESS* icinfo, DWORD dwSize);
-	DWORD DecompressGetPalette(LPBITMAPINFOHEADER lpbiIn, LPBITMAPINFOHEADER lpbiOut);
-	DWORD DecompressEnd();
-
-	BOOL QueryConfigure();
-
-	int  InitThreads(int encode);
-	void EndThreads();
+	void SetMultithreaded(bool mt) {
+		assert(width == 0 && "multithreading must be configured before calling CompressBegin or DecompressBegin.");
+		if (!width)
+			multithreading = mt;
+	}
 
 	DWORD CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
-	DWORD Compress(int frameNum, const void* src, void* dst, unsigned int* frameSizeOut);
+	DWORD Compress(const void* src, void* dst, unsigned int* frameSizeOut);
+	DWORD CompressEnd();
 
 	DWORD DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
-	DWORD Decompress(int frameNum, const void* src, unsigned int compressedFrameSize, void* dst);
+	DWORD Decompress(const void* src, unsigned int compressedFrameSize, void* dst);
+	DWORD DecompressEnd();
 
-	int CompressRGB24(unsigned int* frameSizeOut);
-	int CompressRGBA(unsigned int* frameSizeOut);
+private:
+	int  InitThreads(int encode);
+	void EndThreads();
+	int  CompressRGB24(unsigned int* frameSizeOut);
 
 	unsigned int HandleTwoCompressionThreads(unsigned int chan_size);
 	unsigned int HandleThreeCompressionThreads(unsigned int chan_size);
@@ -197,7 +150,23 @@ public:
 	                     unsigned int len2, unsigned char* dst3, unsigned int len3);
 	void ArithRGBDecompress();
 	void ArithRGBADecompress();
-};
 
-CodecInst* Open(ICOPEN* icinfo);
-DWORD      Close(CodecInst* pinst);
+private:
+	int                  started = 0;
+	unsigned char*       buffer = nullptr;
+	unsigned char*       prev = nullptr;
+	const unsigned char* in = nullptr;
+	unsigned char*       out = nullptr;
+	unsigned char*       buffer2 = nullptr;
+
+	unsigned int length = 0;
+	unsigned int width = 0;
+	unsigned int height = 0;
+	//input format for compressing, output format for decompression. Also the bitdepth.
+	unsigned int format = 0;
+
+	bool          multithreading = false;
+	CompressClass cObj;
+	unsigned int  compressed_size = 0;
+	ThreadData    threads[3];
+};

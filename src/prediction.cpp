@@ -29,8 +29,6 @@
 #include <stdio.h>
 #include <stdint.h>
 
-bool SSSE3 = true;
-
 // Round x up to the next multiple of y if it is not a multiple. Y must be a power of 2.
 #define align_round(x, y) ((((uintptr_t)(x)) + (y - 1)) & (~(y - 1)))
 
@@ -50,12 +48,8 @@ inline int median(int x, int y, int z) {
 	return x + delta; // min
 }
 
-void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest,
-                        const unsigned int width, const unsigned int length, const bool rgbmode) {
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-	// 4.9
-
+void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, const unsigned int width,
+                        const unsigned int length, const bool rgbmode) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
 	// predict the bottom row
@@ -213,172 +207,20 @@ void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest,
 		int z   = x + y - source[a - width - 1];
 		dest[a] = source[a] - median(x, y, z);
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	static HANDLE file = NULL;
-	char msg[128];
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Block_Predict_YUV16_SSE2(const unsigned char* source,
-                              unsigned char* dest, const unsigned int width,
-                              const unsigned int length, const bool is_y) {
-	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
-
-	// predict the bottom row
-	uintptr_t a;
-	__m128i   t0 = _mm_setzero_si128();
-	if (align_shift) {
-		dest[0] = source[0];
-		for (a = 1; a < align_shift; a++) {
-			dest[a] = source[a] - source[a - 1];
-		}
-		t0 = _mm_cvtsi32_si128(source[align_shift - 1]);
-	}
-	for (a = align_shift; a < width; a += 16) {
-		__m128i x           = *(__m128i*)&source[a];
-		t0                  = _mm_or_si128(t0, _mm_slli_si128(x, 1));
-		*(__m128i*)&dest[a] = _mm_sub_epi8(x, t0);
-		t0                  = _mm_srli_si128(x, 15);
-	}
-	if (width >= length)
-		return;
-
-	__m128i z;
-	__m128i x;
-
-	const __m128i zero = _mm_setzero_si128();
-	(void)zero;
-	a = width;
-	{
-		// this block makes sure that source[a] is aligned to 16
-		__m128i srcs = _mm_loadu_si128((__m128i*)&source[a]);
-		__m128i y    = _mm_loadu_si128((__m128i*)&source[a - width]);
-
-		x = _mm_slli_si128(srcs, 1);
-		z = _mm_slli_si128(y, 1);
-		z = _mm_add_epi8(_mm_sub_epi8(x, z), y);
-
-		__m128i i = _mm_min_epu8(x, y);
-		x         = _mm_max_epu8(x, y);
-		i         = _mm_max_epu8(i, z);
-		x         = _mm_min_epu8(x, i);
-
-		srcs = _mm_sub_epi8(srcs, x);
-		_mm_storeu_si128((__m128i*)&dest[a], srcs);
-	}
-
-	if (align_shift) {
-		a = align_round(a, 16);
-		a += align_shift;
-		if (a > width + 16) {
-			a -= 16;
-		}
-	} else {
-		a += 16;
-		a &= (~15);
-	}
-	// source[a] is now aligned
-	x = _mm_cvtsi32_si128(source[a - 1]);
-	z = _mm_cvtsi32_si128(source[a - width - 1]);
-
-
-	const uintptr_t end = length & (~15);
-	// if width is a multiple of 16, use faster aligned reads
-	// inside the prediction loop
-	if (width % 16 == 0) {
-		for (; a < end; a += 16) {
-			__m128i srcs = *(__m128i*)&source[a];
-			__m128i y    = *(__m128i*)&source[a - width];
-
-			x = _mm_or_si128(x, _mm_slli_si128(srcs, 1));
-			z = _mm_or_si128(z, _mm_slli_si128(y, 1));
-			z = _mm_add_epi8(_mm_sub_epi8(x, z), y);
-
-			__m128i i = _mm_min_epu8(x, y);
-			x         = _mm_max_epu8(x, y);
-			i         = _mm_max_epu8(i, z);
-			x         = _mm_min_epu8(x, i);
-
-			i = _mm_srli_si128(srcs, 15);
-
-			srcs = _mm_sub_epi8(srcs, x);
-
-			z = _mm_srli_si128(y, 15);
-			x = i;
-
-			*(__m128i*)&dest[a] = srcs;
-		}
-	} else {
-		// main prediction loop, source[a-width] is unaligned
-		for (; a < end; a += 16) {
-			__m128i srcs = *(__m128i*)&source[a];
-			__m128i y = _mm_loadu_si128((__m128i*)&source[a - width]); // only change from aligned version
-
-			x = _mm_or_si128(x, _mm_slli_si128(srcs, 1));
-			z = _mm_or_si128(z, _mm_slli_si128(y, 1));
-			z = _mm_add_epi8(_mm_sub_epi8(x, z), y);
-
-			__m128i i = _mm_min_epu8(x, y);
-			x         = _mm_max_epu8(x, y);
-			i         = _mm_max_epu8(i, z);
-			x         = _mm_min_epu8(x, i);
-
-			i = _mm_srli_si128(srcs, 15);
-
-			srcs = _mm_sub_epi8(srcs, x);
-
-			z = _mm_srli_si128(y, 15);
-			x = i;
-
-			*(__m128i*)&dest[a] = srcs;
-		}
-	}
-	for (; a < length; a++) {
-		int x   = source[a - 1];
-		int y   = source[a - width];
-		int z   = (x + y - source[a - width - 1]) & 255;
-		dest[a] = source[a] - median(x, y, z);
-	}
-
-	if (is_y) {
-		dest[1] = source[1];
-	}
-	dest[width]     = source[width] - source[width - 1];
-	dest[width + 1] = source[width + 1] - source[width];
-
-	if (is_y) {
-		dest[width + 2] = source[width + 2] - source[width + 1];
-		dest[width + 3] = source[width + 3] - source[width + 2];
-	}
-}
-
-void Decorrilate_And_Split_RGB24_SSE2(const unsigned char* in,
-                                      unsigned char* rdst,
-                                      unsigned char* gdst,
-                                      unsigned char* bdst, const unsigned int width,
-                                      const unsigned int height) {
-	//unsigned __int64 t1,t2;
-	//static HANDLE file = NULL;
-	//t1 = GetTime();
-
+void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rdst,
+                                      unsigned char* gdst, unsigned char* bdst,
+                                      const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
-	if (SSSE3) {
+
+	{
 		// 10
 		const uintptr_t vsteps = (width & 7) ? height : 1;
 		const uintptr_t wsteps = (width & 7) ? (width & (~7)) : width * height;
 
 		const __m128i shuffle =
 		  _mm_setr_epi8(0, 3, 6, 9, 2, 5, 8, 11, 1, 4, 7, 10, -1, -1, -1, -1); // bbbb rrrr gggg 0000
-		//__asm int 3;
 		for (uintptr_t y = 0; y < vsteps; y++) {
 			uintptr_t x;
 			for (x = 0; x < wsteps; x += 8) {
@@ -404,74 +246,12 @@ void Decorrilate_And_Split_RGB24_SSE2(const unsigned char* in,
 				rdst[y * width + x] = in[y * stride + x * 3 + 2] - in[y * stride + x * 3 + 1];
 			}
 		}
-	} else {
-		// 25
-		// 23
-		const uintptr_t vsteps = (width & 3) ? height : 1;
-		const uintptr_t wsteps = (width & 3) ? (width & (~3)) : width * height;
-
-		__m128i mask = _mm_set1_epi16(255);
-		for (uintptr_t y = 0; y < vsteps; y++) {
-			uintptr_t x;
-			for (x = 0; x < wsteps; x += 4) {
-				__m128i x0 = _mm_loadl_epi64((__m128i*)&in[y * stride + x * 3 + 0]);
-				__m128i x1 = _mm_srli_si128(x0, 3);
-				__m128i x3 = _mm_cvtsi32_si128(*(int*)&in[y * stride + x * 3 + 8]);
-				__m128i x2 = _mm_unpacklo_epi64(x0, x3);
-				x3         = _mm_srli_si128(x3, 1);
-				x2         = _mm_srli_si128(x2, 6);
-
-				x0 = _mm_unpacklo_epi32(x0, x1);
-				x2 = _mm_unpacklo_epi32(x2, x3);
-				x0 = _mm_unpacklo_epi64(x0, x2);
-
-				x0 = _mm_shufflelo_epi16(x0, (0 << 0) + (2 << 2) + (1 << 4) + (3 << 6));
-				x0 = _mm_shufflehi_epi16(x0, (0 << 0) + (2 << 2) + (1 << 4) + (3 << 6));
-				x0 = _mm_shuffle_epi32(x0, (0 << 0) + (2 << 2) + (1 << 4) + (3 << 6));
-
-				__m128i g = _mm_srli_epi16(x0, 8);
-				x0        = _mm_and_si128(x0, mask);
-				x0        = _mm_packus_epi16(x0, g);
-				g         = _mm_shuffle_epi32(x0, (2 << 0) + (2 << 2) + (2 << 4) + (2 << 6));
-				x0        = _mm_sub_epi8(x0, g);
-
-
-				*(int*)&bdst[y * width + x] = _mm_cvtsi128_si32(x0);
-				*(int*)&gdst[y * width + x] = _mm_cvtsi128_si32(g);
-				*(int*)&rdst[y * width + x] = _mm_cvtsi128_si32(_mm_srli_si128(x0, 4));
-			}
-			for (; x < width; x++) {
-				bdst[y * width + x] = in[y * stride + x * 3 + 0] - in[y * stride + x * 3 + 1];
-				gdst[y * width + x] = in[y * stride + x * 3 + 1];
-				rdst[y * width + x] = in[y * stride + x * 3 + 2] - in[y * stride + x * 3 + 1];
-			}
-		}
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Decorrilate_And_Split_RGB32_SSE2(const unsigned char* in,
-                                      unsigned char* rdst,
-                                      unsigned char* gdst,
-                                      unsigned char* bdst, const unsigned int width,
-                                      const unsigned int height) {
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-
-	// 13
-	// 12
-
+void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rdst,
+                                      unsigned char* gdst, unsigned char* bdst,
+                                      const unsigned int width, const unsigned int height) {
 	uintptr_t a     = 0;
 	uintptr_t align = (uintptr_t)in;
 	align &= 15;
@@ -518,28 +298,11 @@ void Decorrilate_And_Split_RGB32_SSE2(const unsigned char* in,
 		gdst[a] = in[a * 4 + 1];
 		rdst[a] = in[a * 4 + 2] - in[a * 4 + 1];
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = NULL;
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Decorrilate_And_Split_RGBA_SSE2(const unsigned char* in,
-                                     unsigned char* rdst, unsigned char* gdst,
-                                     unsigned char* bdst, unsigned char* adst,
+void Decorrelate_And_Split_RGBA_SSE2(const unsigned char* in, unsigned char* rdst,
+                                     unsigned char* gdst, unsigned char* bdst, unsigned char* adst,
                                      const unsigned int width, const unsigned int height) {
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-
 	// 15
 
 	const __m128i mask = _mm_set1_epi16(255);
@@ -596,350 +359,10 @@ void Decorrilate_And_Split_RGBA_SSE2(const unsigned char* in,
 		rdst[a] = in[a * 4 + 2] - in[a * 4 + 1];
 		adst[a] = in[a * 4 + 3];
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = NULL;
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Split_YUY2_SSE2(const unsigned char* src, unsigned char* ydst,
-                     unsigned char* udst, unsigned char* vdst,
-                     const unsigned int width, const unsigned int height) {
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-	const __m128i ymask = _mm_set1_epi32(0x00FF00FF);
-	const __m128i umask = _mm_set1_epi32(0x0000FF00);
-
-	// 5.8
-
-	uintptr_t a     = 0;
-	uintptr_t align = (uintptr_t)src;
-	align &= 15;
-	align /= 4;
-
-	for (; a < align; a += 2) {
-		ydst[a + 0] = src[a * 2 + 0];
-		vdst[a / 2] = src[a * 2 + 1];
-		ydst[a + 1] = src[a * 2 + 2];
-		udst[a / 2] = src[a * 2 + 3];
-	}
-
-	const uintptr_t end = (width * height - align) & (~15);
-	for (; a < end; a += 16) {
-		__m128i y0 = *(__m128i*)&src[a * 2 + 0];
-		__m128i y1 = *(__m128i*)&src[a * 2 + 16];
-
-		__m128i u0 = _mm_srli_epi32(_mm_and_si128(y0, umask), 8);
-		__m128i v0 = _mm_srli_epi32(y0, 24);
-		y0         = _mm_and_si128(y0, ymask);
-
-		__m128i u1 = _mm_srli_epi32(_mm_and_si128(y1, umask), 8);
-		__m128i v1 = _mm_srli_epi32(y1, 24);
-		y1         = _mm_and_si128(y1, ymask);
-
-		y0 = _mm_packus_epi16(y0, y1);
-		v0 = _mm_packus_epi16(v0, v1);
-		u0 = _mm_packus_epi16(u0, u1);
-		u0 = _mm_packus_epi16(u0, v0);
-
-		*(__m128i*)&ydst[a] = y0;
-		_mm_storel_epi64((__m128i*)&udst[a / 2], u0);
-		_mm_storel_epi64((__m128i*)&vdst[a / 2], _mm_srli_si128(u0, 8));
-	}
-
-	for (; a < height * width; a += 2) {
-		ydst[a + 0] = src[a * 2 + 0];
-		vdst[a / 2] = src[a * 2 + 1];
-		ydst[a + 1] = src[a * 2 + 2];
-		udst[a / 2] = src[a * 2 + 3];
-	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = NULL;
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
-}
-
-void Split_UYVY_SSE2(const unsigned char* src, unsigned char* ydst,
-                     unsigned char* udst, unsigned char* vdst,
-                     const unsigned int width, const unsigned int height) {
-	uintptr_t a     = 0;
-	uintptr_t align = (uintptr_t)src;
-	align &= 15;
-	align /= 4;
-
-	for (; a < align; a += 2) {
-		vdst[a / 2] = src[a * 2 + 0];
-		ydst[a + 0] = src[a * 2 + 1];
-		udst[a / 2] = src[a * 2 + 2];
-		ydst[a + 1] = src[a * 2 + 3];
-	}
-
-	const __m128i   cmask = _mm_set_epi32(0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF);
-	const uintptr_t end   = (width * height - align) & (~15);
-	for (; a < end; a += 16) {
-		__m128i u0 = *(__m128i*)&src[a * 2 + 0];
-		__m128i u1 = *(__m128i*)&src[a * 2 + 16];
-
-		__m128i y0 = _mm_srli_epi16(u0, 8);
-		__m128i v0 = _mm_and_si128(_mm_srli_si128(u0, 2), cmask);
-		u0         = _mm_and_si128(u0, cmask);
-
-		__m128i y1 = _mm_srli_epi16(u1, 8);
-		__m128i v1 = _mm_and_si128(_mm_srli_si128(u1, 2), cmask);
-		u1         = _mm_and_si128(u1, cmask);
-
-		y0 = _mm_packus_epi16(y0, y1);
-		v0 = _mm_packus_epi16(v0, v1);
-		u0 = _mm_packus_epi16(u0, u1);
-		u0 = _mm_packus_epi16(u0, v0);
-
-		*(__m128i*)&ydst[a] = y0;
-		_mm_storel_epi64((__m128i*)&udst[a / 2], u0);
-		_mm_storel_epi64((__m128i*)&vdst[a / 2], _mm_srli_si128(u0, 8));
-	}
-
-	for (; a < height * width; a += 2) {
-		vdst[a / 2] = src[a * 2 + 0];
-		ydst[a + 0] = src[a * 2 + 1];
-		udst[a / 2] = src[a * 2 + 2];
-		ydst[a + 1] = src[a * 2 + 3];
-	}
-}
-
-
-void Interleave_And_Restore_YUY2_SSE2(unsigned char* output,
-                                      const unsigned char* ysrc,
-                                      const unsigned char* usrc,
-                                      const unsigned char* vsrc,
-                                      const unsigned int width, const unsigned int height) {
-	// restore the bottom row of pixels + 2 pixels
-	{
-		int y, u, v;
-		output[0] = ysrc[0];
-		output[1] = u = usrc[0];
-		output[2] = y = ysrc[1];
-		output[3] = v = vsrc[0];
-
-		for (uintptr_t a = 1; a < width / 2 + 2; a++) {
-			output[a * 4 + 0] = y += ysrc[a * 2 + 0];
-			output[a * 4 + 1] = u += usrc[a];
-			output[a * 4 + 2] = y += ysrc[a * 2 + 1];
-			output[a * 4 + 3] = v += vsrc[a];
-		}
-	}
-
-	if (height <= 1)
-		return;
-
-	// 40
-	// 38
-	// 37
-	// 30
-	// 28
-
-	//unsigned __int64 t1,t2;
-	//static HANDLE file = CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-	//t1 = GetTime();
-
-	const uintptr_t stride = width * 2;
-	uintptr_t       a      = width / 2 + 2;
-
-	// make sure output[a*4-stride] is aligned
-	for (; (a * 4 - stride) & 15; a++) {
-		int x             = output[a * 4 - 2];
-		int y             = output[a * 4 - stride];
-		int z             = (x + y - output[a * 4 - stride - 2]) & 255;
-		output[a * 4 + 0] = ysrc[a * 2 + 0] + median(x, y, z);
-
-		x                 = output[a * 4 - 3];
-		y                 = output[a * 4 - stride + 1];
-		z                 = (x + y - output[a * 4 - stride - 3]) & 255;
-		output[a * 4 + 1] = usrc[a] + median(x, y, z);
-
-		x                 = output[a * 4];
-		y                 = output[a * 4 - stride + 2];
-		z                 = (x + y - output[a * 4 - stride]) & 255;
-		output[a * 4 + 2] = ysrc[a * 2 + 1] + median(x, y, z);
-
-		x                 = output[a * 4 - 1];
-		y                 = output[a * 4 - stride + 3];
-		z                 = (x + y - output[a * 4 - stride - 1]) & 255;
-		output[a * 4 + 3] = vsrc[a] + median(x, y, z);
-	}
-
-	{
-		__m128i   x = _mm_setr_epi8(output[a * 4 - 2], output[a * 4 - 3], 0, output[a * 4 - 1], 0, 0, 0,
-                              0, 0, 0, 0, 0, 0, 0, 0, 0);
-		__m128i   z = _mm_setr_epi8(output[a * 4 - 3 - stride], output[a * 4 - 2 - stride],
-                              output[a * 4 - 1 - stride], 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
-		const int ymask  = 255;
-		const int cmask  = ~255;
-		uintptr_t ending = ((height * width) / 2 - 3);
-
-		// restore the majority of the pixles using SSE2 median prediction
-		for (; a < ending; a += 4) {
-			__m128i srcs  = _mm_loadl_epi64((__m128i*)&ysrc[a * 2]);
-			__m128i temp0 = _mm_cvtsi32_si128(*(int*)&usrc[a]);
-			__m128i temp1 = _mm_cvtsi32_si128(*(int*)&vsrc[a]);
-			srcs          = _mm_unpacklo_epi8(srcs, _mm_unpacklo_epi8(temp0, temp1));
-
-			__m128i y = _mm_load_si128((__m128i*)&output[a * 4 - stride]);
-
-			z = _mm_or_si128(z, _mm_slli_si128(y, 3));                    // z=uyvyuyvy
-			z = _mm_or_si128(_mm_srli_epi16(z, 8), _mm_slli_epi16(z, 8)); // z = yuyvyuyv
-			z = _mm_sub_epi8(_mm_add_epi8(x, y), z);
-
-			__m128i i = _mm_min_epu8(x, y);    //min
-			__m128i j = _mm_max_epu8(x, y);    //max
-			i         = _mm_max_epu8(i, z);    //max
-			j         = _mm_min_epu8(i, j);    //min
-			j         = _mm_add_epi8(j, srcs); // yu-v------------
-			// mask and shift j (yuv)
-			j = _mm_shufflelo_epi16(j, (0 << 0) + (0 << 2) + (0 << 4) + (1 << 6));
-			j = _mm_and_si128(j, _mm_setr_epi16(0, ymask, cmask, cmask, 0, 0, 0, 0));
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyv-u-v--------
-
-			// mask and shift j (yuv)
-			j = _mm_slli_si128(j, 4);
-			j = _mm_shufflelo_epi16(j, (3 << 4));
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, ymask, 0, cmask, cmask, 0, 0));
-
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyvyu-v-u-v----
-			// mask and shift j (y only)
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, ymask, 0, 0, 0, 0, 0));
-			j = _mm_slli_epi32(j, 16);
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyvyuyv-u-v----
-			// mask and shift j (yuv )
-			j = _mm_slli_si128(j, 4);
-			j = _mm_shufflehi_epi16(j, (1 << 0) + (1 << 2) + (2 << 4) + (3 << 6));
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, 0, 0, ymask, 0, cmask, cmask));
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyvyuyvyu-v-u-v
-			// mask and shift j (y only )
-			j = _mm_slli_si128(j, 2);
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, 0, 0, 0, ymask, 0, 0));
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyvyuyvyuyv-u-v
-			// mask and shift j (y only )
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, 0, 0, 0, ymask, 0, 0));
-			j = _mm_slli_si128(j, 2);
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			j = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			j = _mm_min_epu8(i, j);    //min
-			j = _mm_add_epi8(j, srcs); // yuyvyuyvyuyvyu-v
-			// mask and shift j (y only )
-			j = _mm_slli_si128(j, 2);
-			j = _mm_and_si128(j, _mm_setr_epi16(0, 0, 0, 0, 0, 0, 0, ymask));
-			x = _mm_or_si128(x, j);
-			z = _mm_add_epi8(z, j);
-
-			i = _mm_min_epu8(x, y);    //min
-			x = _mm_max_epu8(x, y);    //max
-			i = _mm_max_epu8(i, z);    //max
-			x = _mm_min_epu8(i, x);    //min
-			x = _mm_add_epi8(x, srcs); // yuyvyuyvyuyvyuyv
-			_mm_storeu_si128(
-			  (__m128i*)&output[a * 4],
-			  x); // will be aligned if width%8 is 0; but the speed change is negligable in my tests
-			x = _mm_srli_epi64(x, 40);
-			x = _mm_unpackhi_epi8(x, _mm_setzero_si128());
-			x = _mm_shufflelo_epi16(x, (1 << 0) + (0 << 2) + (3 << 4) + (2 << 6));
-			x = _mm_packus_epi16(x, _mm_setzero_si128());
-
-			z = _mm_srli_si128(y, 13);
-		}
-	}
-
-	// finish off any remaining pixels
-	for (; a < width * height / 2; a++) {
-		int x             = output[a * 4 - 2];
-		int y             = output[a * 4 - stride];
-		int z             = (x + y - output[a * 4 - stride - 2]) & 255;
-		output[a * 4 + 0] = ysrc[a * 2 + 0] + median(x, y, z);
-
-		x                 = output[a * 4 - 3];
-		y                 = output[a * 4 - stride + 1];
-		z                 = (x + y - output[a * 4 - stride - 3]) & 255;
-		output[a * 4 + 1] = usrc[a] + median(x, y, z);
-
-		x                 = output[a * 4];
-		y                 = output[a * 4 - stride + 2];
-		z                 = (x + y - output[a * 4 - stride]) & 255;
-		output[a * 4 + 2] = ysrc[a * 2 + 1] + median(x, y, z);
-
-		x                 = output[a * 4 - 1];
-		y                 = output[a * 4 - stride + 3];
-		z                 = (x + y - output[a * 4 - stride - 1]) & 255;
-		output[a * 4 + 3] = vsrc[a] + median(x, y, z);
-	}
-
-	//t2 = GetTime();
-	//t2 -= t1;
-	//char msg[128];
-	//sprintf(msg,"%f\n",t2/100000.0);
-	//unsigned long bytes;
-	//WriteFile(file,msg,strlen(msg),&bytes,NULL);
-}
-
-void Interleave_And_Restore_RGB24_SSE2(unsigned char* output,
-                                       const unsigned char* rsrc,
-                                       const unsigned char* gsrc,
-                                       const unsigned char* bsrc,
+void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned char* rsrc,
+                                       const unsigned char* gsrc, const unsigned char* bsrc,
                                        const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
@@ -957,9 +380,6 @@ void Interleave_And_Restore_RGB24_SSE2(unsigned char* output,
 
 	if (!height)
 		return;
-
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
 
 	// 81
 	// 70
@@ -1138,25 +558,10 @@ void Interleave_And_Restore_RGB24_SSE2(unsigned char* output,
 		output[a] += output[a + 1];
 		output[a + 2] += output[a + 1];
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	static HANDLE file = NULL;
-	char msg[128];
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Interleave_And_Restore_RGB32_SSE2(unsigned char* output,
-                                       const unsigned char* rsrc,
-                                       const unsigned char* gsrc,
-                                       const unsigned char* bsrc,
+void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned char* rsrc,
+                                       const unsigned char* gsrc, const unsigned char* bsrc,
                                        const unsigned int width, const unsigned int height) {
 	const uintptr_t stride = width * 4;
 	{
@@ -1173,9 +578,6 @@ void Interleave_And_Restore_RGB32_SSE2(unsigned char* output,
 
 	if (height == 1)
 		return;
-
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
 
 	__m128i z = _mm_setzero_si128();
 	__m128i x = _mm_setzero_si128();
@@ -1375,27 +777,12 @@ void Interleave_And_Restore_RGB32_SSE2(unsigned char* output,
 		output[a] += output[a + 1];
 		output[a + 2] += output[a + 1];
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	static HANDLE file = NULL;
-	char msg[128];
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
 
-void Interleave_And_Restore_RGBA_SSE2(unsigned char* output,
-                                      const unsigned char* rsrc,
-                                      const unsigned char* gsrc,
-                                      const unsigned char* bsrc,
-                                      const unsigned char* asrc,
-                                      const unsigned int width, const unsigned int height) {
+void Interleave_And_Restore_RGBA_SSE2(unsigned char* output, const unsigned char* rsrc,
+                                      const unsigned char* gsrc, const unsigned char* bsrc,
+                                      const unsigned char* asrc, const unsigned int width,
+                                      const unsigned int height) {
 	const uintptr_t stride = width * 4;
 	{
 		int r     = 0;
@@ -1615,290 +1002,7 @@ void Interleave_And_Restore_RGBA_SSE2(unsigned char* output,
 	}
 }
 
-void Restore_YV12_SSE2(unsigned char* ysrc, unsigned char* usrc,
-                       unsigned char* vsrc, const unsigned int width,
-                       const unsigned int height) {
-	unsigned int a;
-	{
-		int y = 0;
-		int u = 0;
-		int v = 0;
-		for (a = 0; a < width / 2; a++) {
-			usrc[a] = u += usrc[a];
-			vsrc[a] = v += vsrc[a];
-		}
-		for (a = 0; a < width; a++) {
-			ysrc[a] = y += ysrc[a];
-		}
-	}
-
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-
-	// 72
-	// 41
-	// 35
-	const __m128i mask = _mm_setr_epi32(0x00ff00ff, 0x00ff00ff, 0, 0);
-	(void)mask;
-
-	__m128i x =
-	  _mm_setr_epi16(ysrc[width - 1], usrc[width / 2 - 1], vsrc[width / 2 - 1], 0, 0, 0, 0, 0);
-	__m128i z = _mm_setr_epi16(ysrc[0], usrc[0], vsrc[0], 0, 0, 0, 0, 0);
-
-	for (a = width; a < ((width * height / 4 + width / 2) & (~3)); a += 4) {
-		__m128i y  = _mm_cvtsi32_si128(*(int*)&ysrc[a - width]);
-		__m128i y1 = _mm_cvtsi32_si128(*(int*)&usrc[a - width]);
-		__m128i y2 = _mm_cvtsi32_si128(*(int*)&vsrc[a - width]);
-		y          = _mm_unpacklo_epi8(y, y1);
-		y2         = _mm_unpacklo_epi8(y2, _mm_setzero_si128());
-		y          = _mm_unpacklo_epi16(y, y2);
-
-		__m128i srcs = _mm_cvtsi32_si128(*(int*)&ysrc[a]);
-		__m128i s1   = _mm_cvtsi32_si128(*(int*)&usrc[a - width / 2]);
-		__m128i s2   = _mm_cvtsi32_si128(*(int*)&vsrc[a - width / 2]);
-
-		srcs = _mm_unpacklo_epi8(srcs, s1);
-		s2   = _mm_unpacklo_epi8(s2, _mm_setzero_si128());
-		srcs = _mm_unpacklo_epi16(srcs, s2);
-
-		__m128i temp = _mm_unpackhi_epi64(y, srcs); // store for later
-		y            = _mm_unpacklo_epi8(y, _mm_setzero_si128());
-		srcs         = _mm_unpacklo_epi8(srcs, _mm_setzero_si128());
-
-		z = _mm_unpacklo_epi64(z, y);
-		z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-		__m128i i = _mm_min_epi16(x, y);
-		__m128i j = _mm_max_epi16(x, y);
-		i         = _mm_max_epi16(i, z);
-		j         = _mm_min_epi16(j, i);
-		j         = _mm_add_epi8(j, srcs);
-		j         = _mm_slli_si128(j, 8);
-		x         = _mm_or_si128(x, j);
-		z         = _mm_add_epi16(z, j);
-
-		i = _mm_min_epi16(x, y);
-		x = _mm_max_epi16(x, y);
-		i = _mm_max_epi16(i, z);
-		x = _mm_min_epi16(x, i);
-		x = _mm_add_epi8(x, srcs);
-
-		z    = _mm_srli_si128(y, 8);
-		srcs = _mm_unpackhi_epi8(temp, _mm_setzero_si128());
-		y    = _mm_unpacklo_epi8(temp, _mm_setzero_si128());
-		z    = _mm_unpacklo_epi64(z, y);
-
-		temp = x;
-		x    = _mm_srli_si128(x, 8);
-
-		z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-		i = _mm_min_epi16(x, y);
-		j = _mm_max_epi16(x, y);
-		i = _mm_max_epi16(i, z);
-		j = _mm_min_epi16(j, i);
-		j = _mm_add_epi8(j, srcs);
-		j = _mm_slli_si128(j, 8);
-		x = _mm_or_si128(x, j);
-		z = _mm_add_epi16(z, j);
-
-		temp = _mm_or_si128(temp, _mm_srli_si128(temp, 7));
-
-		i    = _mm_min_epi16(x, y);
-		x    = _mm_max_epi16(x, y);
-		i    = _mm_max_epi16(i, z);
-		x    = _mm_min_epi16(x, i);
-		x    = _mm_add_epi8(x, srcs);
-		i    = x;
-		x    = _mm_srli_si128(x, 7);
-		i    = _mm_or_si128(i, x);
-		temp = _mm_unpacklo_epi16(temp, i);
-
-		*(int*)&ysrc[a]             = _mm_cvtsi128_si32(temp);
-		*(int*)&usrc[a - width / 2] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 4));
-		*(int*)&vsrc[a - width / 2] = _mm_cvtsi128_si32(_mm_srli_si128(temp, 8));
-
-		x = _mm_srli_epi16(x, 8);
-		z = _mm_srli_si128(y, 8);
-	}
-
-	for (; a < width * height / 4 + width / 2; a++) {
-		int i = ysrc[a - 1];
-		int j = ysrc[a - width];
-		int k = i + j - ysrc[a - width - 1];
-		ysrc[a] += median(i, j, k);
-
-		i = usrc[a - width / 2 - 1];
-		j = usrc[a - width / 2 - width / 2];
-		k = i + j - usrc[a - width / 2 - width / 2 - 1];
-		usrc[a - width / 2] += median(i, j, k);
-
-		i = vsrc[a - width / 2 - 1];
-		j = vsrc[a - width / 2 - width / 2];
-		k = i + j - vsrc[a - width / 2 - width / 2 - 1];
-		vsrc[a - width / 2] += median(i, j, k);
-	}
-
-	for (; a & 7; a++) {
-		int x = ysrc[a - 1];
-		int y = ysrc[a - width];
-		int z = x + y - ysrc[a - width - 1];
-		x     = median(x, y, z);
-		ysrc[a] += x;
-	}
-
-	x = _mm_cvtsi32_si128(ysrc[a - 1]);
-	z = _mm_cvtsi32_si128(ysrc[a - width - 1]);
-
-	__m128i shift_mask = _mm_cvtsi32_si128(255);
-
-	for (; a < ((width * height) & (~7)); a += 8) {
-		__m128i src = _mm_loadl_epi64((__m128i*)&ysrc[a]);
-		__m128i y   = _mm_loadl_epi64((__m128i*)&ysrc[a - width]);
-		y           = _mm_unpacklo_epi8(y, _mm_setzero_si128());
-		src         = _mm_unpacklo_epi8(src, _mm_setzero_si128());
-
-		z = _mm_or_si128(z, _mm_slli_si128(y, 2));
-
-		z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-		__m128i i = _mm_min_epi16(x, y);
-		__m128i j = _mm_max_epi16(x, y);
-		i         = _mm_max_epi16(i, z);
-		j         = _mm_min_epi16(j, i);
-		j         = _mm_add_epi8(j, src); // 1 correct
-		// mask and shift j
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i = _mm_min_epi16(x, y);
-		j = _mm_max_epi16(x, y);
-		i = _mm_max_epi16(i, z);
-		j = _mm_min_epi16(j, i);
-		j = _mm_add_epi8(j, src); // 2 correct
-		// mask and shift j
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i = _mm_min_epi16(x, y);
-		j = _mm_max_epi16(x, y);
-		i = _mm_max_epi16(i, z);
-		j = _mm_min_epi16(j, i);
-		j = _mm_add_epi8(j, src); // 3 correct
-		// mask and shift j
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i          = _mm_min_epi16(x, y);
-		j          = _mm_max_epi16(x, y);
-		i          = _mm_max_epi16(i, z);
-		j          = _mm_min_epi16(j, i);
-		j          = _mm_add_epi8(j, src); // 4 correct
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i          = _mm_min_epi16(x, y);
-		j          = _mm_max_epi16(x, y);
-		i          = _mm_max_epi16(i, z);
-		j          = _mm_min_epi16(j, i);
-		j          = _mm_add_epi8(j, src); // 5 correct
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i          = _mm_min_epi16(x, y);
-		j          = _mm_max_epi16(x, y);
-		i          = _mm_max_epi16(i, z);
-		j          = _mm_min_epi16(j, i);
-		j          = _mm_add_epi8(j, src); // 6 correct
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_slli_si128(shift_mask, 2);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i          = _mm_min_epi16(x, y);
-		j          = _mm_max_epi16(x, y);
-		i          = _mm_max_epi16(i, z);
-		j          = _mm_min_epi16(j, i);
-		j          = _mm_add_epi8(j, src); // 7 correct
-		j          = _mm_and_si128(j, shift_mask);
-		j          = _mm_slli_si128(j, 2);
-		shift_mask = _mm_srli_si128(shift_mask, 12);
-		x          = _mm_or_si128(x, j);
-		z          = _mm_add_epi16(z, j);
-
-		i = _mm_min_epi16(x, y);
-		x = _mm_max_epi16(x, y);
-		i = _mm_max_epi16(i, z);
-		x = _mm_min_epi16(x, i);
-		x = _mm_add_epi8(x, src); // 8 correct
-
-		_mm_storel_epi64((__m128i*)&ysrc[a], _mm_packus_epi16(x, x));
-
-		x = _mm_srli_si128(x, 14);
-		z = _mm_srli_si128(y, 14);
-	}
-
-	for (; a < width * height; a++) {
-		int x = ysrc[a - 1];
-		int y = ysrc[a - width];
-		int z = x + y - ysrc[a - width - 1];
-		x     = median(x, y, z);
-		ysrc[a] += x;
-	}
-
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	static HANDLE file = NULL;
-	char msg[128];
-	if ( !file ){
-		file =  CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=median(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
-}
-
-
-void Double_Resolution(const unsigned char* src, unsigned char* dst, unsigned char* buffer,
-                       unsigned int width, unsigned int height) {
-	for (uintptr_t y = 0; y < height; y++) {
-		uintptr_t x = 0;
-		for (; x < width - 1; x++) {
-			dst[y * 2 * width * 2 + x * 2]     = src[y * width + x];
-			dst[y * 2 * width * 2 + x * 2 + 1] = (src[y * width + x] + src[y * width + x + 1] + 1) / 2;
-		}
-		dst[y * 2 * width * 2 + x * 2]     = src[y * width + x];
-		dst[y * 2 * width * 2 + x * 2 + 1] = src[y * width + x];
-	}
-	for (uintptr_t y = 0; y < height * 2 - 2; y += 2) {
-		for (uintptr_t x = 0; x < width * 2; x++) {
-			dst[y * width * 2 + x + width * 2] =
-			  (dst[y * width * 2 + x] + dst[y * width * 2 + x + width * 4] + 1) / 2;
-		}
-	}
-	memcpy(dst + height * 2 * width * 2 - width * 2, dst + height * 2 * width * 2 - width * 4,
-	       width * 2);
-}
-
+#if 0  // reference for non simd implementation
 void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gsrc,
                                           unsigned char* rsrc, unsigned char* dst,
                                           unsigned char* buffer, bool rgb24, unsigned int width,
@@ -1955,85 +1059,44 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gs
 		}
 	}
 }
+#endif // 0
 
-void Block_Predict(const unsigned char* source, unsigned char* dest,
-                   const unsigned int width, const unsigned int length, const bool rgbmode) {
+void Block_Predict(const unsigned char* source, unsigned char* dest, unsigned int width,
+                   unsigned int length, bool rgbmode) {
 	Block_Predict_SSE2(source, dest, width, length, rgbmode);
 }
 
-void Block_Predict_YUV16(const unsigned char* source, unsigned char* dest,
-                         const unsigned int width, const unsigned int length, const bool is_y) {
-	Block_Predict_YUV16_SSE2(source, dest, width, length, is_y);
+void Decorrelate_And_Split_RGB24(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
+                                 unsigned char* bdst, unsigned int width, unsigned int height) {
+	Decorrelate_And_Split_RGB24_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrilate_And_Split_RGB24(const unsigned char* in, unsigned char* rdst,
-                                 unsigned char* gdst, unsigned char* bdst,
-                                 const unsigned int width, const unsigned int height,
-                                 Performance* performance) {
-	Decorrilate_And_Split_RGB24_SSE2(in, rdst, gdst, bdst, width, height);
+void Decorrelate_And_Split_RGB32(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
+                                 unsigned char* bdst, unsigned int width, unsigned int height) {
+	Decorrelate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrilate_And_Split_RGB32(const unsigned char* in, unsigned char* rdst,
-                                 unsigned char* gdst, unsigned char* bdst,
-                                 const unsigned int width, const unsigned int height,
-                                 Performance* performance) {
-	Decorrilate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
+void Decorrelate_And_Split_RGBA(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
+                                unsigned char* bdst, unsigned char* adst, unsigned int width,
+                                unsigned int height) {
+	Decorrelate_And_Split_RGBA_SSE2(in, rdst, gdst, bdst, adst, width, height);
 }
 
-void Decorrilate_And_Split_RGBA(const unsigned char* in, unsigned char* rdst,
-                                unsigned char* gdst, unsigned char* bdst,
-                                unsigned char* adst, const unsigned int width,
-                                const unsigned int height, Performance* performance) {
-	Decorrilate_And_Split_RGBA_SSE2(in, rdst, gdst, bdst, adst, width, height);
-}
-
-void Split_YUY2(const unsigned char* src, unsigned char* ydst,
-                unsigned char* udst, unsigned char* vdst,
-                const unsigned int width, const unsigned int height, Performance* performance) {
-	Split_YUY2_SSE2(src, ydst, udst, vdst, width, height);
-}
-
-void Split_UYVY(const unsigned char* src, unsigned char* ydst,
-                unsigned char* udst, unsigned char* vdst,
-                const unsigned int width, const unsigned int height, Performance* performance) {
-	Split_UYVY_SSE2(src, ydst, udst, vdst, width, height);
-}
-
-void Interleave_And_Restore_RGB24(unsigned char* out,
-                                  const unsigned char* rsrc,
-                                  const unsigned char* gsrc,
-                                  const unsigned char* bsrc, const unsigned int width,
-                                  const unsigned int height, Performance* performance) {
+void Interleave_And_Restore_RGB24(unsigned char* out, const unsigned char* rsrc,
+                                  const unsigned char* gsrc, const unsigned char* bsrc,
+                                  unsigned int width, unsigned int height) {
 	Interleave_And_Restore_RGB24_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGB32(unsigned char* out,
-                                  const unsigned char* rsrc,
-                                  const unsigned char* gsrc,
-                                  const unsigned char* bsrc, const unsigned int width,
-                                  const unsigned int height, Performance* performance) {
+void Interleave_And_Restore_RGB32(unsigned char* out, const unsigned char* rsrc,
+                                  const unsigned char* gsrc, const unsigned char* bsrc,
+                                  unsigned int width, unsigned int height) {
 	Interleave_And_Restore_RGB32_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGBA(unsigned char* out,
-                                 const unsigned char* rsrc,
-                                 const unsigned char* gsrc,
-                                 const unsigned char* bsrc,
-                                 const unsigned char* asrc, const unsigned int width,
-                                 const unsigned int height, Performance* performance) {
+void Interleave_And_Restore_RGBA(unsigned char* out, const unsigned char* rsrc,
+                                 const unsigned char* gsrc, const unsigned char* bsrc,
+                                 const unsigned char* asrc, unsigned int width,
+                                 unsigned int height) {
 	Interleave_And_Restore_RGBA_SSE2(out, rsrc, gsrc, bsrc, asrc, width, height);
-}
-
-void Interleave_And_Restore_YUY2(unsigned char* out,
-                                 const unsigned char* ysrc,
-                                 const unsigned char* usrc,
-                                 const unsigned char* vsrc, const unsigned int width,
-                                 const unsigned int height, Performance* performance) {
-	Interleave_And_Restore_YUY2_SSE2(out, ysrc, usrc, vsrc, width, height);
-}
-
-void Restore_YV12(unsigned char* ysrc, unsigned char* usrc,
-                  unsigned char* vsrc, const unsigned int width,
-                  const unsigned int height, Performance* performance) {
-	Restore_YV12_SSE2(ysrc, usrc, vsrc, width, height);
 }

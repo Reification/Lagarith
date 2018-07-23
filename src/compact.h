@@ -2,11 +2,11 @@
 
 class CompressClass {
 public:
-	unsigned int prob_ranges[257]; // Byte probablity range table
-	unsigned int scale;            // Used to replace some multiply/divides with binary shifts,
+	unsigned int prob_ranges[257] = {}; // Byte probablity range table
+	unsigned int scale = 0;            // Used to replace some multiply/divides with binary shifts,
 	                               // (1<<scale) is equal to the cumulative probabilty of all bytes
 
-	unsigned char* buffer; // buffer to perform RLE when encoding
+	unsigned char* buffer = nullptr; // buffer to perform RLE when encoding
 
 	CompressClass();
 	~CompressClass();

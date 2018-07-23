@@ -27,9 +27,6 @@
 #include <xmmintrin.h>
 #include <tmmintrin.h>
 
-//extern bool SSSE3;
-
-
 void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
                      unsigned char** const out3, const unsigned int length);
 

@@ -12,6 +12,10 @@
 
 #define DUMP_INTERMED_DATA 0
 
+#undef min
+
+#include <algorithm>
+
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
 	int      m_width    = 0;
@@ -180,7 +184,7 @@ static bool testEncodeDecode(int channelCount) {
 	{
 		std::unique_ptr<CodecInst> pCode(new CodecInst());
 
-		pCode->multithreading = true;
+		pCode->SetMultithreaded(true);
 
 		err = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                           srcFrames.GetChannels() * 8);
@@ -195,7 +199,7 @@ static bool testEncodeDecode(int channelCount) {
 		int         i        = 0;
 
 		for (; !!(pSrcBits = srcFrames.GetBits(i)); i++) {
-			err = pCode->Compress(i, pSrcBits, pDstBits, &(compressedFrameSizes[i]));
+			err = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
 
 			if (err) {
 				fprintf(stderr, "Compress failed with err %d\n", err);
@@ -219,7 +223,7 @@ static bool testEncodeDecode(int channelCount) {
 	{
 		std::unique_ptr<CodecInst> pCode(new CodecInst());
 
-		pCode->multithreading = true;
+		pCode->SetMultithreaded(true);
 
 		err = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                             srcFrames.GetChannels() * 8);
@@ -233,7 +237,7 @@ static bool testEncodeDecode(int channelCount) {
 		int      i        = 0;
 
 		for (; !!(pDstBits = decompressedFrames.GetBits(i)); i++) {
-			err = pCode->Decompress(i, compressedFrames[i], compressedFrameSizes[i], pDstBits);
+			err = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
 
 			if (err) {
 				fprintf(stderr, "Decompress failed with err %d\n", err);
@@ -260,7 +264,7 @@ static bool testEncodeDecode(int channelCount) {
 				diff.Alloc(srcFrames.GetWidth(), srcFrames.GetHeight(), srcFrames.GetChannels());
 				stbi_uc* pDiff = diff.m_pBits;
 				for (uint32_t p = 0; p < inputFrameSize; p++) {
-					pDiff[p] = (stbi_uc)(pRoundTripBits[p] - pOrigBits[p]);
+					pDiff[p] = (stbi_uc)std::min((int)0xff, std::abs(((int)pRoundTripBits[p] - (int)pOrigBits[p])));
 				}
 				diff.Save(imageName);
 				mismatches++;
@@ -306,7 +310,9 @@ bool testEncodeDecodeRGBX() {
 }
 
 void registerTests(std::vector<TestFunction>& tests) {
-	//decompressing 24 bit images with non multiple of 4 line widths has bugs.
-	//tests.push_back(&testEncodeDecodeRGB);
 	tests.push_back(&testEncodeDecodeRGBX);
+
+	//decompressing 24 bit images with non multiple of 4 line widths has bugs. - test fails with mismatches
+	//due to diagnonal artifact in images - see mismatched_frame_%02d.png output images following test run. 
+	//tests.push_back(&testEncodeDecodeRGB);
 }

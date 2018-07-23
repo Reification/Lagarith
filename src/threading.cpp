@@ -22,17 +22,9 @@
 DWORD WINAPI encode_worker_thread(LPVOID i) {
 	ThreadData* threaddata = (ThreadData*)i;
 
-#if USE_CONTROL_FP
-	_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#endif
-
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 
 	const unsigned int width = threaddata->width;
-	//const unsigned int height = threaddata->height;
-
-	//const unsigned int format = threaddata->format;
-
 	unsigned char* const buffer = (unsigned char*)threaddata->buffer;
 	assert(buffer != NULL);
 
@@ -64,10 +56,6 @@ DWORD WINAPI encode_worker_thread(LPVOID i) {
 
 DWORD WINAPI decode_worker_thread(LPVOID i) {
 	ThreadData* threaddata = (ThreadData*)i;
-
-#if USE_CONTROL_FP
-	_controlfp(_PC_53 | _RC_NEAR, _MCW_PC | _MCW_RC);
-#endif
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 	while (true) {
@@ -276,5 +264,3 @@ void CodecInst::EndThreads() {
 	threads[1].length = 0;
 	threads[2].length = 0;
 }
-
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
