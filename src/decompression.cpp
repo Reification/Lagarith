@@ -17,7 +17,6 @@
 #include "compact.h"
 #include "lagarith.h"
 #include "prediction.h"
-#include "threading.h"
 #include <float.h>
 
 DWORD CodecInst::DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel) {
@@ -127,7 +126,12 @@ void CodecInst::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned
 
 		cObj.Uncompact(src1, dst1, len1);
 
-		wait_for_threads(2);
+		{
+			HANDLE events[2];
+			events[0] = threads[0].DoneEvent;
+			events[1] = threads[1].DoneEvent;
+			WaitForMultipleObjects(2, &events[0], true, INFINITE);
+		}
 	}
 }
 
@@ -176,92 +180,9 @@ void CodecInst::SetSolidFrameRGB32(const unsigned int r, const unsigned int g, c
 	}
 }
 
-// decompress a RGBA keyframe
-void CodecInst::ArithRGBADecompress() {
-	const unsigned int pixels = width * height;
-	unsigned char*     rdst   = buffer;
-	unsigned char*     gdst   = buffer + pixels;
-	unsigned char*     bdst   = buffer + pixels * 2;
-	unsigned char*     adst   = buffer + pixels * 3;
-
-	const unsigned char* bsrc = in + 13;
-	const unsigned char* gsrc = in + *(UINT32*)(in + 1);
-	const unsigned char* rsrc = in + *(UINT32*)(in + 5);
-	const unsigned char* asrc = in + *(UINT32*)(in + 9);
-
-	if (!multithreading) {
-		cObj.Uncompact(bsrc, bdst, pixels);
-		cObj.Uncompact(gsrc, gdst, pixels);
-		cObj.Uncompact(rsrc, rdst, pixels);
-		if (format == RGB32) {
-			cObj.Uncompact(asrc, adst, pixels);
-		}
-	} else {
-		int bsize = *(UINT32*)(in + 1);
-		int gsize = *(UINT32*)(in + 5);
-		int rsize = *(UINT32*)(in + 9);
-		int asize = compressed_size;
-		if (format == RGB32) { // ignore alpha channel if not RGB32
-			asize -= rsize;
-		}
-		rsize -= gsize;
-		gsize -= bsize;
-		bsize -= 13;
-
-		// Compressed size should aproximate decoding time.
-		// This conditional make the smallest channel have lower priority - the idea
-		// is to improve load-balancing when there are fewer cores than threads.
-		if (bsize <= rsize && bsize <= gsize && bsize <= asize) {
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_BELOW_NORMAL);
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_NORMAL);
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_NORMAL);
-		} else if (rsize <= gsize && rsize <= asize) {
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_NORMAL);
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_BELOW_NORMAL);
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_NORMAL);
-		} else if (asize <= gsize) {
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_NORMAL);
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_NORMAL);
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_BELOW_NORMAL);
-		} else {
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-		}
-
-		threads[0].source = bsrc;
-		threads[0].dest   = bdst;
-		threads[0].length = pixels;
-		SetEvent(threads[0].StartEvent);
-
-		threads[1].source = rsrc;
-		threads[1].dest   = rdst;
-		threads[1].length = pixels;
-		SetEvent(threads[1].StartEvent);
-
-		if (format == RGB32) {
-			threads[2].source = asrc;
-			threads[2].dest   = adst;
-			threads[2].length = pixels;
-			SetEvent(threads[2].StartEvent);
-
-			cObj.Uncompact(gsrc, gdst, pixels);
-			wait_for_threads(3);
-		} else {
-			cObj.Uncompact(gsrc, gdst, pixels);
-			wait_for_threads(2);
-		}
-	}
-
-	if (format == RGB24) {
-		Interleave_And_Restore_RGB24(out, rdst, gdst, bdst, width, height);
-	} else {
-		Interleave_And_Restore_RGBA(out, rdst, gdst, bdst, adst, width, height);
-	}
-}
-
 DWORD CodecInst::Decompress(const void* src, unsigned int compressedFrameSize, void* dst) {
-	assert(width && height && compressedFrameSize && src && dst && "decompression not started or invalid frame parameters!");
+	assert(width && height && compressedFrameSize && src && dst &&
+	       "decompression not started or invalid frame parameters!");
 
 	DWORD return_code = ICERR_OK;
 	out               = (unsigned char*)dst;

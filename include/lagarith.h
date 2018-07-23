@@ -141,16 +141,13 @@ private:
 	int  CompressRGB24(unsigned int* frameSizeOut);
 
 	unsigned int HandleTwoCompressionThreads(unsigned int chan_size);
-	unsigned int HandleThreeCompressionThreads(unsigned int chan_size);
-
+	
 	void SetSolidFrameRGB24(const unsigned int r, const unsigned int g, const unsigned int b);
 	void SetSolidFrameRGB32(const unsigned int r, const unsigned int g, const unsigned int b,
 	                        const unsigned int a);
 	void Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned char* dst2,
 	                     unsigned int len2, unsigned char* dst3, unsigned int len3);
 	void ArithRGBDecompress();
-	void ArithRGBADecompress();
-
 private:
 	int                  started = 0;
 	unsigned char*       buffer = nullptr;
@@ -168,5 +165,5 @@ private:
 	bool          multithreading = false;
 	CompressClass cObj;
 	unsigned int  compressed_size = 0;
-	ThreadData    threads[3];
+	ThreadData    threads[2];
 };

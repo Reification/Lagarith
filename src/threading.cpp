@@ -79,41 +79,35 @@ DWORD WINAPI decode_worker_thread(LPVOID i) {
 }
 
 int CodecInst::InitThreads(int encode) {
-	DWORD temp;
-	threads[0].length = 0;
-	threads[1].length = 0;
-	threads[2].length = 0;
+	const unsigned int use_format = format;
+	DWORD temp = 0;
+
+	assert(width && height && "CompressBegin/DecompressBegin not called!");
+
+	if ( !width || !height ) {
+		return ICERR_INTERNAL;
+	}
 
 	threads[0].StartEvent = CreateEvent(NULL, false, false, NULL);
 	threads[0].DoneEvent  = CreateEvent(NULL, false, false, NULL);
-	threads[1].StartEvent = CreateEvent(NULL, false, false, NULL);
-	threads[1].DoneEvent  = CreateEvent(NULL, false, false, NULL);
-	threads[2].StartEvent = CreateEvent(NULL, false, false, NULL);
-	threads[2].DoneEvent  = CreateEvent(NULL, false, false, NULL);
-
-	unsigned int use_format = format;
 
 	threads[0].width = width;
-	threads[1].width = width;
-	threads[2].width = width;
-
-
 	threads[0].height = height;
-	threads[1].height = height;
-	threads[2].height = height;
-
 	threads[0].format = use_format;
-	threads[1].format = use_format;
-	threads[2].format = use_format;
-
+	threads[0].length = 0;
 	threads[0].thread = NULL;
-	threads[1].thread = NULL;
-	threads[2].thread = NULL;
 	threads[0].buffer = NULL;
-	threads[1].buffer = NULL;
-	threads[2].buffer = NULL;
 
-	int buffer_size = align_round(threads[0].width, 16) * threads[0].height + 256;
+	threads[1].StartEvent = CreateEvent(NULL, false, false, NULL);
+	threads[1].DoneEvent  = CreateEvent(NULL, false, false, NULL);
+	threads[1].width = width;
+	threads[1].height = height;
+	threads[1].format = use_format;
+	threads[1].length     = 0;
+	threads[1].thread = NULL;
+	threads[1].buffer = NULL;
+
+	int buffer_size = align_round(width, 16) * height + 256;
 
 	bool memerror = false;
 	bool interror = false;
@@ -125,27 +119,6 @@ int CodecInst::InitThreads(int encode) {
 		}
 	}
 	if (!memerror) {
-		if (format == RGB32) {
-			if (encode) {
-				if (!threads[2].cObj.InitCompressBuffers(buffer_size)) {
-					memerror = true;
-				}
-			}
-			if (!memerror) {
-				if (encode) {
-					threads[2].thread =
-					  CreateThread(NULL, 0, encode_worker_thread, &threads[2], CREATE_SUSPENDED, &temp);
-				} else {
-					threads[2].thread =
-					  CreateThread(NULL, 0, decode_worker_thread, &threads[2], CREATE_SUSPENDED, &temp);
-				}
-				if (threads[2].thread) {
-					SetThreadPriority(threads[2].thread, THREAD_PRIORITY_BELOW_NORMAL);
-				} else {
-					interror = true;
-				}
-			}
-		}
 		if (!interror && !memerror) {
 			if (encode) {
 				threads[0].thread =
@@ -158,7 +131,7 @@ int CodecInst::InitThreads(int encode) {
 				threads[1].thread =
 				  CreateThread(NULL, 0, decode_worker_thread, &threads[1], CREATE_SUSPENDED, &temp);
 			}
-			if (!threads[0].thread || !threads[1].thread || (use_format == RGB32 && !threads[2].thread)) {
+			if (!threads[0].thread || !threads[1].thread) {
 				interror = true;
 			} else {
 				SetThreadPriority(threads[0].thread, THREAD_PRIORITY_BELOW_NORMAL);
@@ -172,12 +145,6 @@ int CodecInst::InitThreads(int encode) {
 		                                                       16, "threads[0].buffer");
 		threads[1].buffer = (unsigned char*)lag_aligned_malloc((void*)threads[1].buffer, buffer_size,
 		                                                       16, "threads[1].buffer");
-		if (format == RGB32) {
-			threads[2].buffer = (unsigned char*)lag_aligned_malloc((void*)threads[2].buffer, buffer_size,
-			                                                       16, "threads[2].buffer");
-			if (threads[2].buffer == NULL)
-				memerror = true;
-		}
 		if (threads[0].buffer == NULL || threads[1].buffer == NULL) {
 			memerror = true;
 		}
@@ -189,13 +156,11 @@ int CodecInst::InitThreads(int encode) {
 			lag_aligned_free(threads[1].buffer, "threads[1].buffer");
 			threads[0].cObj.FreeCompressBuffers();
 			threads[1].cObj.FreeCompressBuffers();
-			threads[2].cObj.FreeCompressBuffers();
-			lag_aligned_free(threads[2].buffer, "threads[2].buffer");
 		}
 
 		threads[0].thread = NULL;
 		threads[1].thread = NULL;
-		threads[2].thread = NULL;
+
 		if (memerror) {
 			return ICERR_MEMORY;
 		} else {
@@ -204,9 +169,6 @@ int CodecInst::InitThreads(int encode) {
 	} else {
 		ResumeThread(threads[0].thread);
 		ResumeThread(threads[1].thread);
-		if (threads[2].thread) {
-			ResumeThread(threads[2].thread);
-		}
 		return ICERR_OK;
 	}
 }
@@ -214,12 +176,8 @@ int CodecInst::InitThreads(int encode) {
 void CodecInst::EndThreads() {
 	threads[0].length = 0xFFFFFFFF;
 	threads[1].length = 0xFFFFFFFF;
-	threads[2].length = 0xFFFFFFFF;
 
-	HANDLE events[3];
-	events[0] = threads[0].thread;
-	events[1] = threads[1].thread;
-	events[2] = threads[2].thread;
+	HANDLE events[2] = {threads[0].thread, threads[1].thread};
 
 	if (threads[0].thread) {
 		SetEvent(threads[0].StartEvent);
@@ -227,12 +185,8 @@ void CodecInst::EndThreads() {
 	if (threads[1].thread) {
 		SetEvent(threads[1].StartEvent);
 	}
-	if (threads[2].thread) {
-		SetEvent(threads[2].StartEvent);
-		WaitForMultipleObjectsEx(3, &events[0], true, 10000, true);
-	} else {
-		WaitForMultipleObjectsEx(2, &events[0], true, 10000, true);
-	}
+
+	WaitForMultipleObjectsEx(2, &events[0], true, 10000, true);
 
 	if (!CloseHandle(threads[0].thread)) {
 		/*LPVOID lpMsgBuf;
@@ -251,16 +205,14 @@ void CodecInst::EndThreads() {
 		LocalFree( lpMsgBuf );*/
 		//MessageBox (HWND_DESKTOP, "CloseHandle failed for thread A", "Error", MB_OK | MB_ICONEXCLAMATION);
 	}
+
 	if (!CloseHandle(threads[1].thread)) {
 		//	MessageBox (HWND_DESKTOP, "CloseHandle failed for thread B", "Error", MB_OK | MB_ICONEXCLAMATION);
 	}
-	if (threads[2].thread && format == RGB32 && !CloseHandle(threads[2].thread)) {
-		//MessageBox (HWND_DESKTOP,"CloseHandle failed for thread C", "Error", MB_OK | MB_ICONEXCLAMATION);
-	}
+
 	threads[0].thread = NULL;
 	threads[1].thread = NULL;
-	threads[2].thread = NULL;
+
 	threads[0].length = 0;
 	threads[1].length = 0;
-	threads[2].length = 0;
 }

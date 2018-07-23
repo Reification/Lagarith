@@ -17,7 +17,6 @@
 #include <stdint.h>
 #include "lagarith.h"
 #include "prediction.h"
-#include "threading.h"
 #include <float.h>
 
 // initalize the codec for compression
@@ -89,9 +88,7 @@ unsigned int CodecInst::HandleTwoCompressionThreads(unsigned int chan_size) {
 
 	unsigned int current_size = chan_size + 9;
 
-	HANDLE events[2];
-	events[0] = threads[0].DoneEvent;
-	events[1] = threads[1].DoneEvent;
+	HANDLE events[2] = {threads[0].DoneEvent, threads[1].DoneEvent};
 
 	int pos = WaitForMultipleObjects(2, &events[0], false, INFINITE);
 	pos -= WAIT_OBJECT_0;
@@ -137,95 +134,6 @@ unsigned int CodecInst::HandleTwoCompressionThreads(unsigned int chan_size) {
 			threads[0].priority = THREAD_PRIORITY_ABOVE_NORMAL;
 		}
 	}
-	return current_size;
-}
-
-unsigned int CodecInst::HandleThreeCompressionThreads(unsigned int chan_size) {
-	unsigned int channel_sizes[4];
-	channel_sizes[0] = chan_size;
-
-	unsigned int current_size = chan_size + 13;
-
-	HANDLE events[3];
-	events[0] = threads[0].DoneEvent;
-	events[1] = threads[1].DoneEvent;
-	events[2] = threads[2].DoneEvent;
-
-	int positions[] = {0, 1, 2};
-
-	for (int a = 3; a > 0; a--) {
-		int pos = WaitForMultipleObjects(a, &events[0], false, INFINITE);
-		pos -= WAIT_OBJECT_0;
-
-		int thread_num = positions[pos];
-		positions[pos] = positions[a - 1];
-		events[pos]    = events[a - 1];
-
-		ThreadData* finished = &threads[thread_num];
-
-		unsigned int fsize              = finished->size;
-		((DWORD*)(out + 1))[thread_num] = current_size;
-		channel_sizes[thread_num + 1]   = fsize;
-
-		memcpy(out + current_size, (unsigned char*)finished->dest, fsize);
-		current_size += fsize;
-	}
-
-	if (channel_sizes[3] >= channel_sizes[1] && channel_sizes[3] >= channel_sizes[2] &&
-	    channel_sizes[3] >= channel_sizes[0]) {
-		if (threads[2].priority != THREAD_PRIORITY_ABOVE_NORMAL) {
-			if (threads[0].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[0].thread, THREAD_PRIORITY_NORMAL);
-				threads[0].priority = THREAD_PRIORITY_NORMAL;
-			}
-			if (threads[1].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[1].thread, THREAD_PRIORITY_NORMAL);
-				threads[1].priority = THREAD_PRIORITY_NORMAL;
-			}
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-			threads[2].priority = THREAD_PRIORITY_ABOVE_NORMAL;
-		}
-	} else if (channel_sizes[0] >= channel_sizes[1] && channel_sizes[0] >= channel_sizes[2]) {
-		if (threads[0].priority != THREAD_PRIORITY_BELOW_NORMAL) {
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_BELOW_NORMAL);
-			threads[0].priority = THREAD_PRIORITY_BELOW_NORMAL;
-		}
-		if (threads[1].priority != THREAD_PRIORITY_BELOW_NORMAL) {
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_BELOW_NORMAL);
-			threads[1].priority = THREAD_PRIORITY_BELOW_NORMAL;
-		}
-		if (threads[2].priority != THREAD_PRIORITY_BELOW_NORMAL) {
-			SetThreadPriority(threads[2].thread, THREAD_PRIORITY_BELOW_NORMAL);
-			threads[2].priority = THREAD_PRIORITY_BELOW_NORMAL;
-		}
-	} else if (channel_sizes[1] >= channel_sizes[2]) {
-		if (threads[0].priority != THREAD_PRIORITY_ABOVE_NORMAL) {
-			if (threads[2].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[2].thread, THREAD_PRIORITY_NORMAL);
-				threads[2].priority = THREAD_PRIORITY_NORMAL;
-			}
-			if (threads[1].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[1].thread, THREAD_PRIORITY_NORMAL);
-				threads[1].priority = THREAD_PRIORITY_NORMAL;
-			}
-			SetThreadPriority(threads[0].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-			threads[0].priority = THREAD_PRIORITY_ABOVE_NORMAL;
-		}
-	} else {
-		if (threads[1].priority != THREAD_PRIORITY_ABOVE_NORMAL) {
-			if (threads[0].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[0].thread, THREAD_PRIORITY_NORMAL);
-				threads[0].priority = THREAD_PRIORITY_NORMAL;
-			}
-			if (threads[2].priority != THREAD_PRIORITY_NORMAL) {
-				SetThreadPriority(threads[2].thread, THREAD_PRIORITY_NORMAL);
-				threads[2].priority = THREAD_PRIORITY_NORMAL;
-			}
-			SetThreadPriority(threads[1].thread, THREAD_PRIORITY_ABOVE_NORMAL);
-			threads[1].priority = THREAD_PRIORITY_ABOVE_NORMAL;
-		}
-	}
-
 	return current_size;
 }
 
