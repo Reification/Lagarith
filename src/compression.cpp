@@ -321,5 +321,3 @@ DWORD CodecInst::Compress(const void* src, void* dst, unsigned int* frameSizeOut
 
 	return (DWORD)ret_val;
 }
-
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);

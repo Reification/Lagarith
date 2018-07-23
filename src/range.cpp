@@ -22,8 +22,6 @@
 #include <intrin.h>
 #include "lagarith.h"
 #include "reciprocal_table.inl"
-//#pragma warning(disable:4731)
-//#pragma warning(disable:4096)
 
 #define TOP_VALUE 0x80000000
 #define BOTTOM_VALUE 0x00800000
@@ -53,11 +51,8 @@ unsigned int CompressClass::Encode(const unsigned char* in,
                                    unsigned char* out, const unsigned int length) {
 	unsigned int               low    = 0;
 	unsigned int               range  = TOP_VALUE;
-	//unsigned int               help   = 0;
 	unsigned char* const       count  = out;
 	const unsigned char* const ending = in + length;
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
 
 	// 74
 	// 66
@@ -135,19 +130,6 @@ unsigned int CompressClass::Encode(const unsigned char* in,
 	out[2] = low >> 7;
 	out[3] = low << 1;
 	out += 4;
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = 0;
-	if ( !file ){
-		file = CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=average(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 
 	return (unsigned int)(out - count);
 }
@@ -494,19 +476,4 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in,
 
 		//MessageBox (HWND_DESKTOP, "Exception caught in Decode_And_DeRLE", "Error", MB_OK | MB_ICONEXCLAMATION);
 	}
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = 0;
-	if ( !file ){
-		file = CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=average(A1:A1000)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 }
-
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
