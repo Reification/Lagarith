@@ -243,13 +243,7 @@ bool Codec::Decompress(const void* src, unsigned int compressedFrameSize, void* 
 	} break;
 
 	case UNCOMPRESSED: memcpy(out, in + 1, length); break;
-	default:
-#ifndef LAGARITH_RELEASE
-		char emsg[128];
-		sprintf_s(emsg, 128, "Unrecognized frame type: %d", in[0]);
-		MessageBox(HWND_DESKTOP, emsg, "Error", MB_OK | MB_ICONEXCLAMATION);
-#endif
-		return false;
+	default: assert(false && "unrecognized frame type!"); return false;
 	}
 
 	return true;

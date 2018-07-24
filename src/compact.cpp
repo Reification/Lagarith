@@ -259,16 +259,6 @@ void CompressClass::Uncompact(const unsigned char* in, unsigned char* out,
 			}
 		}
 	} else {
-#ifndef LAGARITH_RELEASE
-		if (in[0]) {
-			char msg[128];
-			sprintf_s(msg, 128, "Error! in[0] = %d", in[0]);
-			MessageBox(HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
-			memset(out, 0, length);
-			return;
-		}
-#endif
-
 		int skip = *(int*)(in + 1);
 
 		// Adobe Premeire Pro tends to zero out the data when multi-threading is enabled...
