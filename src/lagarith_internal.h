@@ -1,18 +1,12 @@
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#include <vfw.h>
+#include <stdlib.h>
 #include <malloc.h>
 #include <memory.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <math.h>
-#include <string.h>
 #include <assert.h>
-#include <stdint.h>
-#include <float.h>
-#include <process.h>
+
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
 
 inline void* lag_aligned_malloc(void* ptr, int size, int align, const char* str) {
 	(void)str;
@@ -41,10 +35,9 @@ inline unsigned int align_round( unsigned int x, unsigned int y )
 	return (((x) + (y - 1)) & (~(y - 1)));
 }
 
-static constexpr DWORD FOURCC_LAGS = mmioFOURCC('L', 'A', 'G', 'S');
+//static constexpr DWORD FOURCC_LAGS = mmioFOURCC('L', 'A', 'G', 'S');
 
 // possible frame flags
-#define UNCOMPRESSED 1	// Used for debugging
 #define ARITH_RGB24 4		// Standard RGB24 keyframe frame
 #define BYTEFRAME 5			// solid greyscale color frame
 #define PIXELFRAME 6		// solid non-greyscale color frame

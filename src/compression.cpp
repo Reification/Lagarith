@@ -51,8 +51,7 @@ bool Codec::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerCh
 	}
 
 	if (multithreading) {
-		int code = InitThreads(true);
-		if (code != ICERR_OK) {
+		if (!InitThreads(true)) {
 			return false;
 		}
 	}

@@ -39,7 +39,7 @@ public:
 	void DecompressEnd();
 
 private:
-	int  InitThreads(int encode);
+	bool InitThreads(int encode);
 	void EndThreads();
 	void  CompressRGB24(unsigned int* frameSizeOut);
 

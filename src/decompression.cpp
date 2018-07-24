@@ -46,8 +46,7 @@ bool Codec::DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPer
 	}
 
 	if (multithreading) {
-		int code = InitThreads(false);
-		if (code != ICERR_OK) {
+		if (!InitThreads(false)) {
 			return false;
 		}
 	}
@@ -242,7 +241,6 @@ bool Codec::Decompress(const void* src, unsigned int compressedFrameSize, void* 
 		}
 	} break;
 
-	case UNCOMPRESSED: memcpy(out, in + 1, length); break;
 	default: assert(false && "unrecognized frame type!"); return false;
 	}
 

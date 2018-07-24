@@ -77,14 +77,14 @@ static DWORD WINAPI decode_worker_thread(LPVOID i) {
 	return 0;
 }
 
-int Codec::InitThreads(int encode) {
+bool Codec::InitThreads(int encode) {
 	const unsigned int use_format = format;
 	DWORD              temp       = 0;
 
 	assert(width && height && "CompressBegin/DecompressBegin not called!");
 
 	if (!width || !height) {
-		return ICERR_INTERNAL;
+		return false;
 	}
 
 	threads[0].StartEvent = CreateEvent(NULL, false, false, NULL);
@@ -160,16 +160,13 @@ int Codec::InitThreads(int encode) {
 		threads[0].thread = NULL;
 		threads[1].thread = NULL;
 
-		if (memerror) {
-			return ICERR_MEMORY;
-		} else {
-			return ICERR_INTERNAL;
-		}
-	} else {
-		ResumeThread(threads[0].thread);
-		ResumeThread(threads[1].thread);
-		return ICERR_OK;
+	  return false;
 	}
+
+	ResumeThread(threads[0].thread);
+	ResumeThread(threads[1].thread);
+	
+	return true;
 }
 
 void Codec::EndThreads() {
