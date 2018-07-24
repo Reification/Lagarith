@@ -14,13 +14,13 @@
 //	You should have received a copy of the GNU General Public License
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-#include <stdint.h>
 #include "lagarith.h"
-#include "prediction.h"
-#include <float.h>
+#include "lagarith_internal.h"
+
+namespace Lagarith {
 
 // initalize the codec for compression
-DWORD CodecInst::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerChannel) {
+bool Codec::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerChannel) {
 	if (started == 0x1337) {
 		CompressEnd();
 	}
@@ -43,28 +43,28 @@ DWORD CodecInst::CompressBegin(unsigned int w, unsigned int h, unsigned int bits
 		lag_aligned_free(buffer, "buffer");
 		lag_aligned_free(buffer2, "buffer2");
 		lag_aligned_free(prev, "prev");
-		return ICERR_MEMORY;
+		return false;
 	}
 
-	if (!cObj.InitCompressBuffers(width * height)) {
-		return ICERR_MEMORY;
+	if (!cObj->InitCompressBuffers(width * height)) {
+		return false;
 	}
 
 	if (multithreading) {
 		int code = InitThreads(true);
 		if (code != ICERR_OK) {
-			return code;
+			return false;
 		}
 	}
 
 	started = 0x1337;
 
-	return ICERR_OK;
+	return true;
 }
 
 // release resources when compression is done
 
-DWORD CodecInst::CompressEnd() {
+void Codec::CompressEnd() {
 	if (started == 0x1337) {
 		if (multithreading) {
 			EndThreads();
@@ -73,16 +73,15 @@ DWORD CodecInst::CompressEnd() {
 		lag_aligned_free(buffer, "buffer");
 		lag_aligned_free(buffer2, "buffer2");
 		lag_aligned_free(prev, "prev");
-		cObj.FreeCompressBuffers();
+		cObj->FreeCompressBuffers();
 	}
 	started = 0;
-	return ICERR_OK;
 }
 
 // see this doc entry for setting thread priority of std::thread using native handle + pthreads.
 // https://en.cppreference.com/w/cpp/thread/thread/native_handle
 
-unsigned int CodecInst::HandleTwoCompressionThreads(unsigned int chan_size) {
+unsigned int Codec::HandleTwoCompressionThreads(unsigned int chan_size) {
 	unsigned int channel_sizes[3];
 	channel_sizes[0] = chan_size;
 
@@ -138,7 +137,7 @@ unsigned int CodecInst::HandleTwoCompressionThreads(unsigned int chan_size) {
 }
 
 // Encode a typical RGB24 frame, input can be RGB24 or RGB32
-int CodecInst::CompressRGB24(unsigned int* frameSizeOut) {
+void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 	//const unsigned char* src       = in;
 	const unsigned int pixels    = width * height;
 	const unsigned int block_len = align_round(pixels + 32, 16);
@@ -165,14 +164,14 @@ int CodecInst::CompressRGB24(unsigned int* frameSizeOut) {
 		Block_Predict(gplane, gpred, width, pixels, true);
 		Block_Predict(rplane, rpred, width, pixels, true);
 
-		size = cObj.Compact(bpred, out + 9, pixels);
+		size = cObj->Compact(bpred, out + 9, pixels);
 		size += 9;
 
 		*(UINT32*)(out + 1) = size;
-		size += cObj.Compact(gpred, out + size, pixels);
+		size += cObj->Compact(gpred, out + size, pixels);
 
 		*(UINT32*)(out + 5) = size;
-		size += cObj.Compact(rpred, out + size, pixels);
+		size += cObj->Compact(rpred, out + size, pixels);
 
 	} else {
 		unsigned char* rcomp = prev;
@@ -190,7 +189,7 @@ int CodecInst::CompressRGB24(unsigned int* frameSizeOut) {
 		unsigned char* bpred = buffer2;
 		Block_Predict(bplane, bpred, width, block_len, true);
 
-		unsigned int blue_size = cObj.Compact(bpred, out + 9, pixels);
+		unsigned int blue_size = cObj->Compact(bpred, out + 9, pixels);
 
 		size = HandleTwoCompressionThreads(blue_size);
 	}
@@ -213,19 +212,23 @@ int CodecInst::CompressRGB24(unsigned int* frameSizeOut) {
 	}
 
 	*frameSizeOut = size;
-	return ICERR_OK;
 }
 
 // called to compress a frame; the actual compression will be
 // handed off to other functions depending on the color space and settings
 
-DWORD CodecInst::Compress(const void* src, void* dst, unsigned int* frameSizeOut) {
+bool Codec::Compress(const void* src, void* dst, unsigned int* frameSizeOut) {
 	in  = (const unsigned char*)src;
 	out = (unsigned char*)dst;
 
 	assert(width && height && format && src && dst && frameSizeOut && "CompressBegin not called or invalid frame parameters");
 
-	const int ret_val = CompressRGB24(frameSizeOut);
+	if (width && height && format && src && dst && frameSizeOut) {
+		CompressRGB24(frameSizeOut);
+		return true;
+	}
 
-	return (DWORD)ret_val;
+	return false;
 }
+
+} // namespace Lagarith

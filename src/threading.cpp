@@ -14,17 +14,17 @@
 //	You should have received a copy of the GNU General Public License
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-#include "lagarith.h"
 #include "prediction.h"
-#include <float.h>
-#include <stdint.h>
+#include "lagarith.h"
+#include "lagarith_internal.h"
 
-DWORD WINAPI encode_worker_thread(LPVOID i) {
+namespace Lagarith {
+static DWORD WINAPI encode_worker_thread(LPVOID i) {
 	ThreadData* threaddata = (ThreadData*)i;
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 
-	const unsigned int width = threaddata->width;
+	const unsigned int   width  = threaddata->width;
 	unsigned char* const buffer = (unsigned char*)threaddata->buffer;
 	assert(buffer != NULL);
 
@@ -54,7 +54,7 @@ DWORD WINAPI encode_worker_thread(LPVOID i) {
 	return 0;
 }
 
-DWORD WINAPI decode_worker_thread(LPVOID i) {
+static DWORD WINAPI decode_worker_thread(LPVOID i) {
 	ThreadData* threaddata = (ThreadData*)i;
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
@@ -78,20 +78,20 @@ DWORD WINAPI decode_worker_thread(LPVOID i) {
 	return 0;
 }
 
-int CodecInst::InitThreads(int encode) {
+int Codec::InitThreads(int encode) {
 	const unsigned int use_format = format;
-	DWORD temp = 0;
+	DWORD              temp       = 0;
 
 	assert(width && height && "CompressBegin/DecompressBegin not called!");
 
-	if ( !width || !height ) {
+	if (!width || !height) {
 		return ICERR_INTERNAL;
 	}
 
 	threads[0].StartEvent = CreateEvent(NULL, false, false, NULL);
 	threads[0].DoneEvent  = CreateEvent(NULL, false, false, NULL);
 
-	threads[0].width = width;
+	threads[0].width  = width;
 	threads[0].height = height;
 	threads[0].format = use_format;
 	threads[0].length = 0;
@@ -100,12 +100,12 @@ int CodecInst::InitThreads(int encode) {
 
 	threads[1].StartEvent = CreateEvent(NULL, false, false, NULL);
 	threads[1].DoneEvent  = CreateEvent(NULL, false, false, NULL);
-	threads[1].width = width;
-	threads[1].height = height;
-	threads[1].format = use_format;
+	threads[1].width      = width;
+	threads[1].height     = height;
+	threads[1].format     = use_format;
 	threads[1].length     = 0;
-	threads[1].thread = NULL;
-	threads[1].buffer = NULL;
+	threads[1].thread     = NULL;
+	threads[1].buffer     = NULL;
 
 	int buffer_size = align_round(width, 16) * height + 256;
 
@@ -173,7 +173,7 @@ int CodecInst::InitThreads(int encode) {
 	}
 }
 
-void CodecInst::EndThreads() {
+void Codec::EndThreads() {
 	threads[0].length = 0xFFFFFFFF;
 	threads[1].length = 0xFFFFFFFF;
 
@@ -216,3 +216,5 @@ void CodecInst::EndThreads() {
 	threads[0].length = 0;
 	threads[1].length = 0;
 }
+
+} // namespace Lagarith

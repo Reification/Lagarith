@@ -164,7 +164,7 @@ private:
 static bool testEncodeDecode(int channelCount) {
 	RasterSequence srcFrames;
 	RasterSequence decompressedFrames;
-	int            err = 0;
+	bool           result = false;
 
 	if (!srcFrames.Load(channelCount, "frame_%02d.png", 0, 4)) {
 		return false;
@@ -182,15 +182,15 @@ static bool testEncodeDecode(int channelCount) {
 
 	// encode execution
 	{
-		std::unique_ptr<CodecInst> pCode(new CodecInst());
+		std::unique_ptr<Lagarith::Codec> pCode(new Lagarith::Codec());
 
 		pCode->SetMultithreaded(true);
 
-		err = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
+		result = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                           srcFrames.GetChannels() * 8);
 
-		if (err) {
-			fprintf(stderr, "CompressBegin failed with err %d\n", err);
+		if (!result) {
+			fprintf(stderr, "CompressBegin failed.\n");
 			return false;
 		}
 
@@ -199,10 +199,10 @@ static bool testEncodeDecode(int channelCount) {
 		int         i        = 0;
 
 		for (; !!(pSrcBits = srcFrames.GetBits(i)); i++) {
-			err = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
+			result = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
 
-			if (err) {
-				fprintf(stderr, "Compress failed with err %d\n", err);
+			if (!result) {
+				fprintf(stderr, "Compress failed.\n");
 				pCode->CompressEnd();
 				return false;
 			}
@@ -221,15 +221,15 @@ static bool testEncodeDecode(int channelCount) {
 
 	// decode execution
 	{
-		std::unique_ptr<CodecInst> pCode(new CodecInst());
+		std::unique_ptr<Lagarith::Codec> pCode(new Lagarith::Codec());
 
 		pCode->SetMultithreaded(true);
 
-		err = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
+		result = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
 		                             srcFrames.GetChannels() * 8);
 
-		if (err) {
-			fprintf(stderr, "DecompressBegin failed with err %d\n", err);
+		if (!result) {
+			fprintf(stderr, "DecompressBegin failed.\n");
 			return false;
 		}
 
@@ -237,10 +237,10 @@ static bool testEncodeDecode(int channelCount) {
 		int      i        = 0;
 
 		for (; !!(pDstBits = decompressedFrames.GetBits(i)); i++) {
-			err = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
+			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
 
-			if (err) {
-				fprintf(stderr, "Decompress failed with err %d\n", err);
+			if (!result) {
+				fprintf(stderr, "Decompress failed.\n");
 				pCode->DecompressEnd();
 				return false;
 			}

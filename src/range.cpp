@@ -15,13 +15,14 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+#include "lagarith_internal.h"
 #include "compact.h"
-#include <memory.h>
+
+#include "reciprocal_table.inl"
+
 #include <mmintrin.h>
 #include <emmintrin.h>
 #include <intrin.h>
-#include "lagarith.h"
-#include "reciprocal_table.inl"
 
 #define TOP_VALUE 0x80000000
 #define BOTTOM_VALUE 0x00800000
@@ -45,10 +46,11 @@ const unsigned int dist_restore[] = {
 
 const unsigned int* dist_rest = &dist_restore[0];
 
+namespace Lagarith {
 // Compress a byte stream using range coding. The freqency table
 // "prob_ranges" will previously have been set up by the Calcprob function
-unsigned int CompressClass::Encode(const unsigned char* in,
-                                   unsigned char* out, const unsigned int length) {
+unsigned int CompressClass::Encode(const unsigned char* in, unsigned char* out,
+                                   const unsigned int length) {
 	unsigned int               low    = 0;
 	unsigned int               range  = TOP_VALUE;
 	unsigned char* const       count  = out;
@@ -207,9 +209,8 @@ For the RLE cases, the output is initally set to zero, and then the output
 pointer is advanced by the apropriate value when ever a run is detected in the
 decoder.
 */
-void CompressClass::Decode_And_DeRLE(const unsigned char* in,
-                                     unsigned char* out, const unsigned int length,
-                                     unsigned int level) {
+void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out,
+                                     const unsigned int length, unsigned int level) {
 	__assume(length >= 2);
 
 	unsigned int low = (in[0] << 23) + (in[1] << 15) + (in[2] << 7) + (in[3] >> 1);
@@ -477,3 +478,5 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in,
 		//MessageBox (HWND_DESKTOP, "Exception caught in Decode_And_DeRLE", "Error", MB_OK | MB_ICONEXCLAMATION);
 	}
 }
+
+} // namespace Lagarith

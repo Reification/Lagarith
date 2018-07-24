@@ -1,5 +1,6 @@
 #pragma once
 
+namespace Lagarith {
 class CompressClass {
 public:
 	unsigned int prob_ranges[257] = {}; // Byte probablity range table
@@ -28,3 +29,5 @@ public:
 	void         Decode_And_DeRLE(const unsigned char* in, unsigned char* out,
 	                              const unsigned int length, unsigned int level);
 };
+}
+

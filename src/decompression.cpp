@@ -14,12 +14,12 @@
 //	You should have received a copy of the GNU General Public License
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
-#include "compact.h"
 #include "lagarith.h"
-#include "prediction.h"
-#include <float.h>
+#include "lagarith_internal.h"
 
-DWORD CodecInst::DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel) {
+namespace Lagarith {
+
+bool Codec::DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel) {
 	if (started == 0x1337) {
 		DecompressEnd();
 	}
@@ -42,21 +42,21 @@ DWORD CodecInst::DecompressBegin(unsigned int w, unsigned int h, unsigned int bi
 	buffer2 = (unsigned char*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
 
 	if (!buffer || !buffer2) {
-		return ICERR_MEMORY;
+		return false;
 	}
 
 	if (multithreading) {
 		int code = InitThreads(false);
 		if (code != ICERR_OK) {
-			return code;
+			return false;
 		}
 	}
 	started = 0x1337;
-	return ICERR_OK;
+	return true;
 }
 
 // release resources when decompression is done
-DWORD CodecInst::DecompressEnd() {
+void Codec::DecompressEnd() {
 	if (started == 0x1337) {
 		if (multithreading) {
 			EndThreads();
@@ -64,22 +64,21 @@ DWORD CodecInst::DecompressEnd() {
 
 		lag_aligned_free(buffer, "buffer");
 		lag_aligned_free(buffer2, "buffer2");
-		cObj.FreeCompressBuffers();
+		cObj->FreeCompressBuffers();
 	}
 	started = 0;
-	return ICERR_OK;
 }
 
-void CodecInst::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned char* dst2,
-                                unsigned int len2, unsigned char* dst3, unsigned int len3) {
+void Codec::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned char* dst2,
+                            unsigned int len2, unsigned char* dst3, unsigned int len3) {
 	const unsigned char* src1 = in + 9;
 	const unsigned char* src2 = in + *(UINT32*)(in + 1);
 	const unsigned char* src3 = in + *(UINT32*)(in + 5);
 
 	if (!multithreading) {
-		cObj.Uncompact(src1, dst1, len1);
-		cObj.Uncompact(src2, dst2, len2);
-		cObj.Uncompact(src3, dst3, len3);
+		cObj->Uncompact(src1, dst1, len1);
+		cObj->Uncompact(src2, dst2, len2);
+		cObj->Uncompact(src3, dst3, len3);
 		return;
 	} else {
 		int size1 = *(UINT32*)(in + 1);
@@ -124,7 +123,7 @@ void CodecInst::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned
 		threads[1].length = len3;
 		SetEvent(threads[1].StartEvent);
 
-		cObj.Uncompact(src1, dst1, len1);
+		cObj->Uncompact(src1, dst1, len1);
 
 		{
 			HANDLE events[2];
@@ -136,7 +135,7 @@ void CodecInst::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned
 }
 
 // decompress a typical RGB24 frame
-void CodecInst::ArithRGBDecompress() {
+void Codec::ArithRGBDecompress() {
 	const unsigned int pixels = width * height;
 
 	unsigned char* bdst = buffer;
@@ -154,8 +153,7 @@ void CodecInst::ArithRGBDecompress() {
 
 
 // decompress a RGB24 pixel frame
-void CodecInst::SetSolidFrameRGB24(const unsigned int r, const unsigned int g,
-                                   const unsigned int b) {
+void Codec::SetSolidFrameRGB24(const unsigned int r, const unsigned int g, const unsigned int b) {
 	const unsigned int stride = align_round(width * 3, 4);
 	if (r == g && r == b) {
 		memset(out, r, stride * height);
@@ -169,8 +167,8 @@ void CodecInst::SetSolidFrameRGB24(const unsigned int r, const unsigned int g,
 	}
 }
 
-void CodecInst::SetSolidFrameRGB32(const unsigned int r, const unsigned int g, const unsigned int b,
-                                   const unsigned int a) {
+void Codec::SetSolidFrameRGB32(const unsigned int r, const unsigned int g, const unsigned int b,
+                               const unsigned int a) {
 	if (r == g && r == b && r == a) {
 		memset(out, r, width * height * 4);
 	}
@@ -180,17 +178,21 @@ void CodecInst::SetSolidFrameRGB32(const unsigned int r, const unsigned int g, c
 	}
 }
 
-DWORD CodecInst::Decompress(const void* src, unsigned int compressedFrameSize, void* dst) {
+bool Codec::Decompress(const void* src, unsigned int compressedFrameSize, void* dst) {
 	assert(width && height && compressedFrameSize && src && dst &&
 	       "decompression not started or invalid frame parameters!");
 
-	DWORD return_code = ICERR_OK;
+	if ( !(width&& height&& compressedFrameSize&& src&& dst) )
+	{
+		return false;
+	}
+
 	out               = (unsigned char*)dst;
 	in                = (const unsigned char*)src;
 	compressed_size   = compressedFrameSize;
 
 	if (compressed_size == 0) {
-		return ICERR_OK;
+		return true;
 	}
 
 	if (compressed_size <= 21) {
@@ -219,7 +221,7 @@ DWORD CodecInst::Decompress(const void* src, unsigned int compressedFrameSize, v
 			} else {
 				SetSolidFrameRGB32(r, g, b, 0xff);
 			}
-			return ICERR_OK;
+			return true;
 		}
 	}
 
@@ -250,9 +252,10 @@ DWORD CodecInst::Decompress(const void* src, unsigned int compressedFrameSize, v
 		sprintf_s(emsg, 128, "Unrecognized frame type: %d", in[0]);
 		MessageBox(HWND_DESKTOP, emsg, "Error", MB_OK | MB_ICONEXCLAMATION);
 #endif
-		return_code = ICERR_ERROR;
-		break;
+		return false;
 	}
 
-	return return_code;
+	return true;
 }
+
+} // namespace Lagarith

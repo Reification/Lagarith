@@ -132,7 +132,7 @@ the first byte needs to be saved.
 */
 
 unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
-                        unsigned char* const out3, const unsigned int length,
+                        unsigned char* const out3, unsigned int length,
                         int* level) {
 	unsigned char* lvl1 = out1;
 	unsigned char* lvl3 = out3;
@@ -143,25 +143,9 @@ unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
 	in[length + 2] = 0;
 	in[length + 3] = 0;
 
-	//unsigned __int64 t1,t2;
-	//t1 = GetTime();
-
 	unsigned int a = 0;
 
 	TestAndRLE_SSE2(in, &lvl1, &lvl3, length);
-
-	/*t2 = GetTime();
-	t2 -= t1;
-	char msg[128];
-	static HANDLE file = 0;
-	if ( !file ){
-		file = CreateFile("C:\\Users\\Lags\\Desktop\\lag_log.csv",GENERIC_WRITE,0,0,CREATE_ALWAYS,0,0);
-		sprintf(msg,"%f,=average(A:A)\n",t2/100000.0);
-	} else {
-		sprintf(msg,"%f\n",t2/100000.0);
-	}
-	unsigned long bytes;
-	WriteFile(file,msg,strlen(msg),&bytes,NULL);*/
 
 	unsigned int len1 = (int)(lvl1 - out1);
 	unsigned int len3 = (int)(lvl3 - out3);
@@ -208,7 +192,7 @@ unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
 }
 
 void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
-                     unsigned char** const out3, const unsigned int length) {
+                     unsigned char** const out3, unsigned int length) {
 	//23
 	//20
 	//11
@@ -344,7 +328,7 @@ void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 // 0 bytes to output. This routine is only used in the rare occurence
 // where RLE compression is better than header + range coding
 
-int deRLE(const unsigned char* in, unsigned char* out, const int length, const int level) {
+int deRLE(const unsigned char* in, unsigned char* out, int length, int level) {
 	int a = 0;
 	int b = 0;
 	memset(out, 0, length);

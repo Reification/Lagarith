@@ -16,18 +16,13 @@
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "lagarith.h"
-//#include <commctrl.h>
-//#include <shellapi.h>
-//#include <Windowsx.h>
-//#include <intrin.h>
+#include "lagarith_internal.h"
 
-#define return_badformat() return (DWORD)ICERR_BADFORMAT;
-//#define return_badformat() { char msg[256];sprintf(msg,"Returning error on line %d", __LINE__);MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION); return (DWORD)ICERR_BADFORMAT; }
+namespace Lagarith {
 
-CodecInst::CodecInst() {
-}
+Codec::Codec() : cObj(new CompressClass()), threads(new ThreadData[2]) {}
 
-CodecInst::~CodecInst() {
+Codec::~Codec() {
 	try {
 		if (started == 0x1337) {
 			if (buffer2) {
@@ -40,3 +35,12 @@ CodecInst::~CodecInst() {
 	} catch (...) {
 	};
 }
+
+void Codec::SetMultithreaded(bool mt) {
+	assert(width == 0 &&
+	       "multithreading must be configured before calling CompressBegin or DecompressBegin.");
+	if (!width)
+		multithreading = mt;
+}
+
+} // namespace Lagarith

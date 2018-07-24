@@ -48,8 +48,8 @@ inline int median(int x, int y, int z) {
 	return x + delta; // min
 }
 
-void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, const unsigned int width,
-                        const unsigned int length, const bool rgbmode) {
+void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, unsigned int width,
+                        unsigned int length, const bool rgbmode) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
 	// predict the bottom row
@@ -210,8 +210,8 @@ void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, const 
 }
 
 void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rdst,
-                                      unsigned char* gdst, unsigned char* bdst,
-                                      const unsigned int width, const unsigned int height) {
+                                      unsigned char* gdst, unsigned char* bdst, unsigned int width,
+                                      unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	{
@@ -250,8 +250,8 @@ void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rd
 }
 
 void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rdst,
-                                      unsigned char* gdst, unsigned char* bdst,
-                                      const unsigned int width, const unsigned int height) {
+                                      unsigned char* gdst, unsigned char* bdst, unsigned int width,
+                                      unsigned int height) {
 	uintptr_t a     = 0;
 	uintptr_t align = (uintptr_t)in;
 	align &= 15;
@@ -300,70 +300,9 @@ void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rd
 	}
 }
 
-void Decorrelate_And_Split_RGBA_SSE2(const unsigned char* in, unsigned char* rdst,
-                                     unsigned char* gdst, unsigned char* bdst, unsigned char* adst,
-                                     const unsigned int width, const unsigned int height) {
-	// 15
-
-	const __m128i mask = _mm_set1_epi16(255);
-
-	uintptr_t a     = 0;
-	uintptr_t align = (uintptr_t)in;
-	align &= 15;
-	align /= 4;
-
-	for (a = 0; a < align; a++) {
-		bdst[a] = in[a * 4 + 0] - in[a * 4 + 1];
-		gdst[a] = in[a * 4 + 1];
-		rdst[a] = in[a * 4 + 2] - in[a * 4 + 1];
-		adst[a] = in[a * 4 + 3];
-	}
-
-	const uintptr_t end = (width * height - align) & (~7);
-	for (; a < end; a += 8) {
-		__m128i x0 = *(__m128i*)&in[a * 4 + 0];
-		__m128i x2 = *(__m128i*)&in[a * 4 + 16];
-		__m128i x1 = x0;
-		__m128i x3 = x2;
-		x0         = _mm_srli_epi16(x0, 8);   // ga
-		x1         = _mm_and_si128(x1, mask); // br
-		x2         = _mm_srli_epi16(x2, 8);
-		x3         = _mm_and_si128(x3, mask);
-
-		x0 = _mm_packus_epi16(x0, x2);
-		x1 = _mm_packus_epi16(x1, x3);
-		x2 = x0;
-		x3 = x1;
-
-		__m128i g     = _mm_and_si128(x2, mask);
-		__m128i alpha = _mm_srli_epi16(x0, 8);
-		__m128i r     = _mm_srli_epi16(x1, 8);
-		__m128i b     = _mm_and_si128(x3, mask);
-
-		b = _mm_sub_epi8(b, g);
-		r = _mm_sub_epi8(r, g);
-
-		b = _mm_packus_epi16(b, r);
-		g = _mm_packus_epi16(g, alpha);
-
-
-		_mm_storel_epi64((__m128i*)&bdst[a], b);
-		_mm_storel_epi64((__m128i*)&gdst[a], g);
-		_mm_storel_epi64((__m128i*)&rdst[a], _mm_srli_si128(b, 8));
-		_mm_storel_epi64((__m128i*)&adst[a], _mm_srli_si128(g, 8));
-	}
-
-	for (; a < width * height; a++) {
-		bdst[a] = in[a * 4 + 0] - in[a * 4 + 1];
-		gdst[a] = in[a * 4 + 1];
-		rdst[a] = in[a * 4 + 2] - in[a * 4 + 1];
-		adst[a] = in[a * 4 + 3];
-	}
-}
-
 void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned char* rsrc,
                                        const unsigned char* gsrc, const unsigned char* bsrc,
-                                       const unsigned int width, const unsigned int height) {
+                                       unsigned int width, unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	// restore the bottom row
@@ -562,7 +501,7 @@ void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned cha
 
 void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned char* rsrc,
                                        const unsigned char* gsrc, const unsigned char* bsrc,
-                                       const unsigned int width, const unsigned int height) {
+                                       unsigned int width, unsigned int height) {
 	const uintptr_t stride = width * 4;
 	{
 		int r = 0;
@@ -779,229 +718,6 @@ void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned cha
 	}
 }
 
-void Interleave_And_Restore_RGBA_SSE2(unsigned char* output, const unsigned char* rsrc,
-                                      const unsigned char* gsrc, const unsigned char* bsrc,
-                                      const unsigned char* asrc, const unsigned int width,
-                                      const unsigned int height) {
-	const uintptr_t stride = width * 4;
-	{
-		int r     = 0;
-		int g     = 0;
-		int b     = 0;
-		int alpha = 0;
-		for (uintptr_t a = 0; a < width; a++) {
-			output[a * 4 + 0] = b += bsrc[a];
-			output[a * 4 + 1] = g += gsrc[a];
-			output[a * 4 + 2] = r += rsrc[a];
-			output[a * 4 + 3] = alpha += asrc[a];
-		}
-	}
-
-	if (height == 1)
-		return;
-
-	__m128i z = _mm_setzero_si128();
-	__m128i x = _mm_setzero_si128();
-
-	const uintptr_t end = ((width * (height - 1)) & (~3)) + width;
-	uintptr_t       a   = width;
-
-	if ((stride & 15) == 0) {
-		// 85
-		// 77
-		// 65
-		// 46
-
-		for (; a < end; a += 4) {
-			__m128i b     = _mm_cvtsi32_si128(*(unsigned int*)&bsrc[a]);
-			__m128i g     = _mm_cvtsi32_si128(*(unsigned int*)&gsrc[a]);
-			__m128i r     = _mm_cvtsi32_si128(*(unsigned int*)&rsrc[a]);
-			__m128i alpha = _mm_cvtsi32_si128(*(unsigned int*)&asrc[a]);
-			b             = _mm_unpacklo_epi8(b, g);
-			r             = _mm_unpacklo_epi8(r, alpha);
-
-			__m128i src1 = _mm_unpacklo_epi16(b, r);
-			__m128i src2 = _mm_unpackhi_epi8(src1, _mm_setzero_si128());
-			src1         = _mm_unpacklo_epi8(src1, _mm_setzero_si128());
-
-			__m128i temp2 = _mm_load_si128((__m128i*)&output[a * 4 - stride]); // must be %16
-			__m128i y     = _mm_unpacklo_epi8(temp2, _mm_setzero_si128());
-			z             = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			__m128i i = _mm_min_epi16(x, y); //min
-			x         = _mm_max_epi16(x, y); //max
-			i         = _mm_max_epi16(i, z); //max
-			x         = _mm_min_epi16(i, x); //min
-			x         = _mm_add_epi8(x, src1);
-			src1      = _mm_srli_si128(src1, 8);
-
-			z             = y;
-			y             = _mm_srli_si128(y, 8);
-			__m128i temp1 = x;
-
-			/*******/
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i = _mm_min_epi16(x, y); //min
-			x = _mm_max_epi16(x, y); //max
-			i = _mm_max_epi16(i, z); //max
-			x = _mm_min_epi16(i, x); //min
-			x = _mm_add_epi8(x, src1);
-
-			temp1 = _mm_unpacklo_epi64(temp1, x);
-
-			z = y;
-
-			/*******/
-			i     = temp2;
-			y     = _mm_unpackhi_epi8(temp2, _mm_setzero_si128());
-			temp2 = _mm_srli_epi16(temp2, 8);
-			temp2 = _mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
-			temp2 = _mm_shufflehi_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
-			temp2 = _mm_add_epi8(temp2, i);
-			_mm_store_si128((__m128i*)&output[a * 4 - stride], temp2); // must be %16
-
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i    = _mm_min_epi16(x, y); //min
-			x    = _mm_max_epi16(x, y); //max
-			i    = _mm_max_epi16(i, z); //max
-			x    = _mm_min_epi16(i, x); //min
-			x    = _mm_add_epi8(x, src2);
-			src2 = _mm_srli_si128(src2, 8);
-
-			z     = y;
-			y     = _mm_srli_si128(y, 8);
-			temp2 = x;
-
-			/*******/
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i = _mm_min_epi16(x, y); //min
-			x = _mm_max_epi16(x, y); //max
-			i = _mm_max_epi16(i, z); //max
-			x = _mm_min_epi16(i, x); //min
-			x = _mm_add_epi8(x, src2);
-
-			temp2 = _mm_unpacklo_epi64(temp2, x);
-			temp1 = _mm_packus_epi16(temp1, temp2);
-
-			_mm_store_si128((__m128i*)&output[a * 4], temp1);
-
-			z = y;
-		}
-	} else { // width is not mod 4, change pixel store to unaligned move
-
-		// 52
-		for (; a < end; a += 4) {
-			__m128i b     = _mm_cvtsi32_si128(*(unsigned int*)&bsrc[a]);
-			__m128i g     = _mm_cvtsi32_si128(*(unsigned int*)&gsrc[a]);
-			__m128i r     = _mm_cvtsi32_si128(*(unsigned int*)&rsrc[a]);
-			__m128i alpha = _mm_cvtsi32_si128(*(unsigned int*)&asrc[a]);
-			b             = _mm_unpacklo_epi8(b, g);
-			r             = _mm_unpacklo_epi8(r, alpha);
-
-			__m128i src1 = _mm_unpacklo_epi16(b, r);
-			__m128i src2 = _mm_unpackhi_epi8(src1, _mm_setzero_si128());
-			src1         = _mm_unpacklo_epi8(src1, _mm_setzero_si128());
-
-			__m128i temp2 = _mm_load_si128((__m128i*)&output[a * 4 - stride]); // must be %16
-			__m128i y     = _mm_unpacklo_epi8(temp2, _mm_setzero_si128());
-			z             = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			__m128i i = _mm_min_epi16(x, y); //min
-			x         = _mm_max_epi16(x, y); //max
-			i         = _mm_max_epi16(i, z); //max
-			x         = _mm_min_epi16(i, x); //min
-			x         = _mm_add_epi8(x, src1);
-			src1      = _mm_srli_si128(src1, 8);
-
-			z             = y;
-			y             = _mm_srli_si128(y, 8);
-			__m128i temp1 = x;
-
-			/*******/
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i = _mm_min_epi16(x, y); //min
-			x = _mm_max_epi16(x, y); //max
-			i = _mm_max_epi16(i, z); //max
-			x = _mm_min_epi16(i, x); //min
-			x = _mm_add_epi8(x, src1);
-
-			temp1 = _mm_unpacklo_epi64(temp1, x);
-
-			z = y;
-
-			/*******/
-			i     = temp2;
-			y     = _mm_unpackhi_epi8(temp2, _mm_setzero_si128());
-			temp2 = _mm_srli_epi16(temp2, 8);
-			temp2 = _mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
-			temp2 = _mm_shufflehi_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
-			temp2 = _mm_add_epi8(temp2, i);
-			_mm_store_si128((__m128i*)&output[a * 4 - stride], temp2); // must be %16
-
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i    = _mm_min_epi16(x, y); //min
-			x    = _mm_max_epi16(x, y); //max
-			i    = _mm_max_epi16(i, z); //max
-			x    = _mm_min_epi16(i, x); //min
-			x    = _mm_add_epi8(x, src2);
-			src2 = _mm_srli_si128(src2, 8);
-
-			z     = y;
-			y     = _mm_srli_si128(y, 8);
-			temp2 = x;
-
-			/*******/
-			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
-
-			i = _mm_min_epi16(x, y); //min
-			x = _mm_max_epi16(x, y); //max
-			i = _mm_max_epi16(i, z); //max
-			x = _mm_min_epi16(i, x); //min
-			x = _mm_add_epi8(x, src2);
-
-			temp2 = _mm_unpacklo_epi64(temp2, x);
-			temp1 = _mm_packus_epi16(temp1, temp2);
-
-			_mm_storeu_si128((__m128i*)&output[a * 4], temp1); // only change for unaligned version
-
-			z = y;
-		}
-	}
-
-	// finish off any remaining pixels (0-3 pixels)
-	for (; a < width * height; a++) {
-		__m128i src = _mm_cvtsi32_si128(bsrc[a] + (gsrc[a] << 8) + (rsrc[a] << 16) + (asrc[a] << 24));
-		src         = _mm_unpacklo_epi8(src, _mm_setzero_si128());
-
-		__m128i y = _mm_cvtsi32_si128(*(int*)&output[a * 4 - stride]);
-		output[a * 4 - stride + 0] += output[a * 4 - stride + 1];
-		output[a * 4 - stride + 2] += output[a * 4 - stride + 1];
-		y = _mm_unpacklo_epi8(y, _mm_setzero_si128());
-		z = _mm_subs_epu16(_mm_add_epi16(x, y), z);
-
-		__m128i i = _mm_min_epi16(x, y); //min
-		x         = _mm_max_epi16(x, y); //max
-		i         = _mm_max_epi16(i, z); //max
-		x         = _mm_min_epi16(x, i); //min
-		x         = _mm_add_epi8(x, src);
-
-		*(int*)&output[a * 4] = _mm_cvtsi128_si32(_mm_packus_epi16(x, x));
-
-		z = y;
-	}
-
-	// finish recorrilating top row
-	for (uintptr_t a = stride * (height - 1); a < stride * height; a += 4) {
-		output[a] += output[a + 1];
-		output[a + 2] += output[a + 1];
-	}
-}
-
 #if 0  // reference for non simd implementation
 void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gsrc,
                                           unsigned char* rsrc, unsigned char* dst,
@@ -1076,12 +792,6 @@ void Decorrelate_And_Split_RGB32(const unsigned char* in, unsigned char* rdst, u
 	Decorrelate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrelate_And_Split_RGBA(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
-                                unsigned char* bdst, unsigned char* adst, unsigned int width,
-                                unsigned int height) {
-	Decorrelate_And_Split_RGBA_SSE2(in, rdst, gdst, bdst, adst, width, height);
-}
-
 void Interleave_And_Restore_RGB24(unsigned char* out, const unsigned char* rsrc,
                                   const unsigned char* gsrc, const unsigned char* bsrc,
                                   unsigned int width, unsigned int height) {
@@ -1092,11 +802,4 @@ void Interleave_And_Restore_RGB32(unsigned char* out, const unsigned char* rsrc,
                                   const unsigned char* gsrc, const unsigned char* bsrc,
                                   unsigned int width, unsigned int height) {
 	Interleave_And_Restore_RGB32_SSE2(out, rsrc, gsrc, bsrc, width, height);
-}
-
-void Interleave_And_Restore_RGBA(unsigned char* out, const unsigned char* rsrc,
-                                 const unsigned char* gsrc, const unsigned char* bsrc,
-                                 const unsigned char* asrc, unsigned int width,
-                                 unsigned int height) {
-	Interleave_And_Restore_RGBA_SSE2(out, rsrc, gsrc, bsrc, asrc, width, height);
 }

@@ -15,18 +15,11 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#ifndef _COMPACT_CPP
-#define _COMPACT_CPP
-
-#include <stdlib.h>
-#include <memory.h>
-#include <stdio.h>
-#include <string.h>
-#include <windows.h>
-#include <math.h>
-#include "lagarith.h"
+#include "lagarith_internal.h"
 #include "fibonacci.h"
 #include "zerorle.h"
+
+namespace Lagarith {
 
 // scale the byte probablities so the cumulative
 // probabilty is equal to a power of 2
@@ -314,6 +307,4 @@ CompressClass::~CompressClass() {
 	FreeCompressBuffers();
 }
 
-//MessageBox (HWND_DESKTOP, msg, "Error", MB_OK | MB_ICONEXCLAMATION);
-
-#endif
+} // namespace Lagarith
