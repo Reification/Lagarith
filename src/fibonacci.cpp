@@ -15,11 +15,9 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#include <math.h>
+#include "fibonacci.h"
 #include <stdlib.h>
 #include <memory.h>
-#include <stdio.h>
-#include <windows.h>
 #include <assert.h>
 
 // This file is used to compress the header without needing a header for the header...

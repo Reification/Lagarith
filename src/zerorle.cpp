@@ -17,17 +17,11 @@
 
 #include <stdlib.h>
 #include <memory.h>
-#include <stdio.h>
-#include <string.h>
-#include <windows.h>
-#include <math.h>
-#include "fibonacci.h"
-#include <mmintrin.h>
-#include <emmintrin.h>
-#include <xmmintrin.h>
 #include <tmmintrin.h>
 
-void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
+#include "fibonacci.h"
+
+static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
                      unsigned char** const out3, const unsigned int length);
 
 // this lookup table is used for encoding run lengths so that
@@ -78,7 +72,7 @@ static const unsigned int lvl3_lookup[] = {
 
 // This function encodes zero runs longer than 256 bytes;
 // This is rare and takes a variable amount of bytes per level
-void Encode_Long_Run(unsigned char** l1, unsigned char** l3, unsigned int count) {
+static void Encode_Long_Run(unsigned char** l1, unsigned char** l3, unsigned int count) {
 	unsigned char* lvl1 = l1[0];
 	unsigned char* lvl3 = l3[0];
 	unsigned int   x    = count;
@@ -191,7 +185,7 @@ unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
 	return len3;
 }
 
-void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
+static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
                      unsigned char** const out3, unsigned int length) {
 	//23
 	//20

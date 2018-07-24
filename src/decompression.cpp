@@ -126,9 +126,7 @@ void Codec::Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned cha
 		cObj->Uncompact(src1, dst1, len1);
 
 		{
-			HANDLE events[2];
-			events[0] = threads[0].DoneEvent;
-			events[1] = threads[1].DoneEvent;
+			HANDLE events[2] = {threads[0].DoneEvent, threads[1].DoneEvent};
 			WaitForMultipleObjects(2, &events[0], true, INFINITE);
 		}
 	}
@@ -182,14 +180,13 @@ bool Codec::Decompress(const void* src, unsigned int compressedFrameSize, void* 
 	assert(width && height && compressedFrameSize && src && dst &&
 	       "decompression not started or invalid frame parameters!");
 
-	if ( !(width&& height&& compressedFrameSize&& src&& dst) )
-	{
+	if (!(width && height && compressedFrameSize && src && dst)) {
 		return false;
 	}
 
-	out               = (unsigned char*)dst;
-	in                = (const unsigned char*)src;
-	compressed_size   = compressedFrameSize;
+	out             = (unsigned char*)dst;
+	in              = (const unsigned char*)src;
+	compressed_size = compressedFrameSize;
 
 	if (compressed_size == 0) {
 		return true;

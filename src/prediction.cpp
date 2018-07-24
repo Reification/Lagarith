@@ -17,20 +17,9 @@
 
 //This file contains functions that perform and undo median predition that are used by both x86 and x64
 #define WIN32_LEAN_AND_MEAN
+#include "lagarith_internal.h"
 #include "prediction.h"
-#include <mmintrin.h>
-#include <xmmintrin.h>
-#include <emmintrin.h>
 #include <tmmintrin.h>
-#include <stdlib.h>
-#include <memory.h>
-#include <assert.h>
-#include <windows.h>
-#include <stdio.h>
-#include <stdint.h>
-
-// Round x up to the next multiple of y if it is not a multiple. Y must be a power of 2.
-#define align_round(x, y) ((((uintptr_t)(x)) + (y - 1)) & (~(y - 1)))
 
 // this effectively performs a bubble sort to select the median:
 // min(max(min(x,y),z),max(x,y))
@@ -49,7 +38,7 @@ inline int median(int x, int y, int z) {
 }
 
 void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, unsigned int width,
-                        unsigned int length, const bool rgbmode) {
+                        unsigned int length, bool rgbmode) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
 	// predict the bottom row
@@ -209,7 +198,7 @@ void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, unsign
 	}
 }
 
-void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rdst,
+static void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rdst,
                                       unsigned char* gdst, unsigned char* bdst, unsigned int width,
                                       unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
@@ -249,7 +238,7 @@ void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rd
 	}
 }
 
-void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rdst,
+static void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rdst,
                                       unsigned char* gdst, unsigned char* bdst, unsigned int width,
                                       unsigned int height) {
 	uintptr_t a     = 0;
@@ -300,7 +289,7 @@ void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rd
 	}
 }
 
-void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned char* rsrc,
+static void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned char* rsrc,
                                        const unsigned char* gsrc, const unsigned char* bsrc,
                                        unsigned int width, unsigned int height) {
 	const uintptr_t stride = align_round(width * 3, 4);
@@ -499,7 +488,7 @@ void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned cha
 	}
 }
 
-void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned char* rsrc,
+static void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned char* rsrc,
                                        const unsigned char* gsrc, const unsigned char* bsrc,
                                        unsigned int width, unsigned int height) {
 	const uintptr_t stride = width * 4;
