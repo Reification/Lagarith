@@ -98,11 +98,11 @@ uint32_t Codec::HandleTwoCompressionThreads(uint32_t chan_size) {
 	ThreadData* running  = &threads[!pos];
 
 	((uint32_t*)(out + 1))[pos] = current_size;
-	channel_sizes[pos + 1]   = finished->size;
+	channel_sizes[pos + 1]      = finished->size;
 	memcpy(out + current_size, (uint8_t*)finished->dest, channel_sizes[pos + 1]);
 	current_size += finished->size;
 
-	pos                      = !pos;
+	pos                         = !pos;
 	((uint32_t*)(out + 1))[pos] = current_size;
 
 	WaitForSingleObject(running->DoneEvent, INFINITE);
@@ -146,9 +146,9 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 	//const uint8_t* src       = in;
 	const uint32_t pixels    = width * height;
 	const uint32_t block_len = align_round(pixels + 32, 16);
-	uint8_t*     bplane    = buffer;
-	uint8_t*     gplane    = buffer + block_len;
-	uint8_t*     rplane    = buffer + block_len * 2;
+	uint8_t*       bplane    = buffer;
+	uint8_t*       gplane    = buffer + block_len;
+	uint8_t*       rplane    = buffer + block_len * 2;
 
 
 	// convert the interleaved channels to planer, aligning if needed

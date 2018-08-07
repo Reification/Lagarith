@@ -19,8 +19,8 @@
 #include "fibonacci.h"
 #include <tmmintrin.h>
 
-static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
-                     uint8_t** const out3, const uint32_t length);
+static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** const out3,
+                            const uint32_t length);
 
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
@@ -125,9 +125,8 @@ first is zero, in this case the function will return -1, and only
 the first byte needs to be saved.
 */
 
-uint32_t TestAndRLE(uint8_t* const in, uint8_t* const out1,
-                        uint8_t* const out3, uint32_t length,
-                        int* level) {
+uint32_t TestAndRLE(uint8_t* const in, uint8_t* const out1, uint8_t* const out3, uint32_t length,
+                    int* level) {
 	uint8_t* lvl1 = out1;
 	uint8_t* lvl3 = out3;
 
@@ -185,13 +184,13 @@ uint32_t TestAndRLE(uint8_t* const in, uint8_t* const out1,
 	return len3;
 }
 
-static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
-                     uint8_t** const out3, uint32_t length) {
+static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** const out3,
+                            uint32_t length) {
 	//23
 	//20
 	//11
 	//10.3
-	uint32_t   a    = 0;
+	uint32_t a    = 0;
 	uint8_t* lvl3 = *out3;
 
 	const __m128i zero = _mm_setr_epi32(0, 0, -1, -1);
@@ -202,9 +201,9 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
 			// copy bytes until a zero run is found
 			__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
 			_mm_storel_epi64((__m128i*)lvl3, s);
-			s                  = _mm_cmpeq_epi8(s, zero);
+			s              = _mm_cmpeq_epi8(s, zero);
 			uint32_t index = _mm_movemask_epi8(s);
-			step               = lvl3_lookup[index];
+			step           = lvl3_lookup[index];
 			lvl3 += step;
 			a += step;
 		} while (step >= 6);
@@ -254,7 +253,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
 
 	// if level 3 RLE is > 32% of no RLE (length), then level 1 RLE will not
 	// be used and does not need to be calculated.
-	uint32_t   len  = (int)(lvl3 - *out3);
+	uint32_t len  = (int)(lvl3 - *out3);
 	uint8_t* lvl1 = *out1;
 	if (len * 100 / length <= 32) {
 		a = 0;

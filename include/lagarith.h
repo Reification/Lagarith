@@ -46,14 +46,13 @@ private:
 	uint32_t HandleTwoCompressionThreads(uint32_t chan_size);
 
 	void SetSolidFrameRGB24(const uint32_t r, const uint32_t g, const uint32_t b);
-	void SetSolidFrameRGB32(const uint32_t r, const uint32_t g, const uint32_t b,
-	                        const uint32_t a);
-	void Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2,
-	                     uint32_t len2, uint8_t* dst3, uint32_t len3);
+	void SetSolidFrameRGB32(const uint32_t r, const uint32_t g, const uint32_t b, const uint32_t a);
+	void Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2, uint32_t len2, uint8_t* dst3,
+	                     uint32_t len3);
 	void ArithRGBDecompress();
 
 private:
-	int                  started = 0;
+	int            started = 0;
 	uint8_t*       buffer  = nullptr;
 	uint8_t*       prev    = nullptr;
 	const uint8_t* in      = nullptr;
@@ -64,12 +63,12 @@ private:
 	uint32_t width  = 0;
 	uint32_t height = 0;
 	//input format for compressing, output format for decompression. Also the bitdepth.
-	uint32_t format = 0;
+	uint32_t format          = 0;
 	uint32_t compressed_size = 0;
 
 	std::unique_ptr<CompressClass> cObj;
 	std::unique_ptr<ThreadData[]>  threads;
-	bool multithreading = false;
+	bool                           multithreading = false;
 };
 
 } // Lagarith

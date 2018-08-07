@@ -70,15 +70,15 @@ void Codec::DecompressEnd() {
 	started = 0;
 }
 
-void Codec::Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2,
-                            uint32_t len2, uint8_t* dst3, uint32_t len3) {
+void Codec::Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2, uint32_t len2,
+                            uint8_t* dst3, uint32_t len3) {
 	const uint8_t* src1 = in + 9;
 	const uint8_t* src2 = in + *(uint32_t*)(in + 1);
 	const uint8_t* src3 = in + *(uint32_t*)(in + 5);
 
-	#if LAGARITH_MULTITHREAD_SUPPORT
-	if (!multithreading) 
-	#endif
+#if LAGARITH_MULTITHREAD_SUPPORT
+	if (!multithreading)
+#endif
 	{
 		cObj->Uncompact(src1, dst1, len1);
 		cObj->Uncompact(src2, dst2, len2);
@@ -200,7 +200,7 @@ bool Codec::Decompress(const void* src, uint32_t compressedFrameSize, void* dst)
 	}
 
 	if (compressed_size <= 21) {
-		bool         solid = false;
+		bool     solid = false;
 		uint32_t r = 0, g = 0, b = 0;
 		if (in[0] == ARITH_RGB24 && compressed_size == 15) {
 			// solid frame that wasn't caught by old memcmp logic

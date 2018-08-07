@@ -26,7 +26,7 @@ static DWORD WINAPI encode_worker_thread(LPVOID i) {
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 
-	const uint32_t   width  = threaddata->width;
+	const uint32_t width  = threaddata->width;
 	uint8_t* const buffer = (uint8_t*)threaddata->buffer;
 	assert(buffer != NULL);
 
@@ -82,7 +82,7 @@ static DWORD WINAPI decode_worker_thread(LPVOID i) {
 
 bool Codec::InitThreads(int encode) {
 	const uint32_t use_format = format;
-	DWORD              temp       = 0;
+	DWORD          temp       = 0;
 
 	assert(width && height && "CompressBegin/DecompressBegin not called!");
 
@@ -143,10 +143,10 @@ bool Codec::InitThreads(int encode) {
 	}
 
 	if (!memerror && !interror && encode) {
-		threads[0].buffer = (uint8_t*)lag_aligned_malloc((void*)threads[0].buffer, buffer_size,
-		                                                       16, "threads[0].buffer");
-		threads[1].buffer = (uint8_t*)lag_aligned_malloc((void*)threads[1].buffer, buffer_size,
-		                                                       16, "threads[1].buffer");
+		threads[0].buffer =
+		  (uint8_t*)lag_aligned_malloc((void*)threads[0].buffer, buffer_size, 16, "threads[0].buffer");
+		threads[1].buffer =
+		  (uint8_t*)lag_aligned_malloc((void*)threads[1].buffer, buffer_size, 16, "threads[1].buffer");
 		if (threads[0].buffer == NULL || threads[1].buffer == NULL) {
 			memerror = true;
 		}
@@ -163,12 +163,12 @@ bool Codec::InitThreads(int encode) {
 		threads[0].thread = NULL;
 		threads[1].thread = NULL;
 
-	  return false;
+		return false;
 	}
 
 	ResumeThread(threads[0].thread);
 	ResumeThread(threads[1].thread);
-	
+
 	return true;
 }
 
@@ -223,8 +223,7 @@ bool Codec::InitThreads(int encode) {
 	return false;
 }
 
-void Codec::EndThreads() {
-}
+void Codec::EndThreads() {}
 
 #endif // LAGARITH_MULTITHREAD_SUPPORT
 } // namespace Lagarith

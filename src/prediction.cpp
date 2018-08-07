@@ -37,8 +37,8 @@ inline int median(int x, int y, int z) {
 	return x + delta; // min
 }
 
-void Block_Predict_SSE2(const uint8_t* source, uint8_t* dest, uint32_t width,
-                        uint32_t length, bool rgbmode) {
+void Block_Predict_SSE2(const uint8_t* source, uint8_t* dest, uint32_t width, uint32_t length,
+                        bool rgbmode) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
 	// predict the bottom row
@@ -198,9 +198,8 @@ void Block_Predict_SSE2(const uint8_t* source, uint8_t* dest, uint32_t width,
 	}
 }
 
-static void Decorrelate_And_Split_RGB24_SSE2(const uint8_t* in, uint8_t* rdst,
-                                      uint8_t* gdst, uint8_t* bdst, uint32_t width,
-                                      uint32_t height) {
+static void Decorrelate_And_Split_RGB24_SSE2(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
+                                             uint8_t* bdst, uint32_t width, uint32_t height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	{
@@ -238,9 +237,8 @@ static void Decorrelate_And_Split_RGB24_SSE2(const uint8_t* in, uint8_t* rdst,
 	}
 }
 
-static void Decorrelate_And_Split_RGB32_SSE2(const uint8_t* in, uint8_t* rdst,
-                                      uint8_t* gdst, uint8_t* bdst, uint32_t width,
-                                      uint32_t height) {
+static void Decorrelate_And_Split_RGB32_SSE2(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
+                                             uint8_t* bdst, uint32_t width, uint32_t height) {
 	uintptr_t a     = 0;
 	uintptr_t align = (uintptr_t)in;
 	align &= 15;
@@ -290,8 +288,8 @@ static void Decorrelate_And_Split_RGB32_SSE2(const uint8_t* in, uint8_t* rdst,
 }
 
 static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rsrc,
-                                       const uint8_t* gsrc, const uint8_t* bsrc,
-                                       uint32_t width, uint32_t height) {
+                                              const uint8_t* gsrc, const uint8_t* bsrc,
+                                              uint32_t width, uint32_t height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	// restore the bottom row
@@ -474,9 +472,9 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 		x         = _mm_add_epi8(x, src);
 
 		uint32_t temp = _mm_cvtsi128_si32(_mm_packus_epi16(x, x));
-		output[a + 0]     = temp;
-		output[a + 1]     = temp >> 8;
-		output[a + 2]     = temp >> 16;
+		output[a + 0] = temp;
+		output[a + 1] = temp >> 8;
+		output[a + 2] = temp >> 16;
 
 		z = y;
 	}
@@ -489,8 +487,8 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 }
 
 static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rsrc,
-                                       const uint8_t* gsrc, const uint8_t* bsrc,
-                                       uint32_t width, uint32_t height) {
+                                              const uint8_t* gsrc, const uint8_t* bsrc,
+                                              uint32_t width, uint32_t height) {
 	const uintptr_t stride = width * 4;
 	{
 		int r = 0;
@@ -766,29 +764,27 @@ void Interleave_And_Restore_Old_Unaligned(uint8_t* bsrc, uint8_t* gsrc,
 }
 #endif // 0
 
-void Block_Predict(const uint8_t* source, uint8_t* dest, uint32_t width,
-                   uint32_t length, bool rgbmode) {
+void Block_Predict(const uint8_t* source, uint8_t* dest, uint32_t width, uint32_t length,
+                   bool rgbmode) {
 	Block_Predict_SSE2(source, dest, width, length, rgbmode);
 }
 
-void Decorrelate_And_Split_RGB24(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
-                                 uint8_t* bdst, uint32_t width, uint32_t height) {
+void Decorrelate_And_Split_RGB24(const uint8_t* in, uint8_t* rdst, uint8_t* gdst, uint8_t* bdst,
+                                 uint32_t width, uint32_t height) {
 	Decorrelate_And_Split_RGB24_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrelate_And_Split_RGB32(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
-                                 uint8_t* bdst, uint32_t width, uint32_t height) {
+void Decorrelate_And_Split_RGB32(const uint8_t* in, uint8_t* rdst, uint8_t* gdst, uint8_t* bdst,
+                                 uint32_t width, uint32_t height) {
 	Decorrelate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Interleave_And_Restore_RGB24(uint8_t* out, const uint8_t* rsrc,
-                                  const uint8_t* gsrc, const uint8_t* bsrc,
-                                  uint32_t width, uint32_t height) {
+void Interleave_And_Restore_RGB24(uint8_t* out, const uint8_t* rsrc, const uint8_t* gsrc,
+                                  const uint8_t* bsrc, uint32_t width, uint32_t height) {
 	Interleave_And_Restore_RGB24_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGB32(uint8_t* out, const uint8_t* rsrc,
-                                  const uint8_t* gsrc, const uint8_t* bsrc,
-                                  uint32_t width, uint32_t height) {
+void Interleave_And_Restore_RGB32(uint8_t* out, const uint8_t* rsrc, const uint8_t* gsrc,
+                                  const uint8_t* bsrc, uint32_t width, uint32_t height) {
 	Interleave_And_Restore_RGB32_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }

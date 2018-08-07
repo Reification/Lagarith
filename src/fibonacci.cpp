@@ -25,25 +25,26 @@
 // large numbers taking more bits than small numbers. Here, 0 takes two bits to encode,
 // while a number like 200,000 takes about 28 bits. Additonally, if a frequency of zero is
 // encountered, the number of zero freqencies that follows are encoded and the encode position
-// moved accordingly. This is pretty much the same as the zero RLE done on the byte streams 
+// moved accordingly. This is pretty much the same as the zero RLE done on the byte streams
 // themselves, except the run is encoded using Fibonacci coding.
 
-#define writeBit(x) { \
-	if ( x) \
-		out[pos]|=bitpos;\
-	bitpos>>=1;\
-	if ( !bitpos){ \
-		bitpos=0x80;\
-		pos++;\
-		out[pos]=0;\
-	}\
-}
+#define writeBit(x)                                                                                \
+	{                                                                                                \
+		if (x)                                                                                         \
+			out[pos] |= bitpos;                                                                          \
+		bitpos >>= 1;                                                                                  \
+		if (!bitpos) {                                                                                 \
+			bitpos = 0x80;                                                                               \
+			pos++;                                                                                       \
+			out[pos] = 0;                                                                                \
+		}                                                                                              \
+	}
 
 uint32_t FibonacciEncode(unsigned int* in, uint8_t* out) {
-	uint8_t output[12];
-	uint32_t  pos     = 0;
-	uint32_t  bitpos  = 0x80;
-	out[0]                = 0;
+	uint8_t  output[12];
+	uint32_t pos      = 0;
+	uint32_t bitpos   = 0x80;
+	out[0]            = 0;
 	uint32_t series[] = {1, 2, 3, 5, 8, 13, 21};
 	for (uint32_t b = 0; b < 256; b++) {
 		memset(output, 0, 12);
@@ -120,14 +121,15 @@ uint32_t FibonacciEncode(unsigned int* in, uint8_t* out) {
 	return pos + (bitpos != 0x80);
 }
 
-#define readBit() { \
-	bit = bitpos & in[pos];\
-	bitpos >>=1;\
-	if ( !bitpos ){\
-		pos++;\
-		bitpos = 0x80;\
-	}\
-}
+#define readBit()                                                                                  \
+	{                                                                                                \
+		bit = bitpos & in[pos];                                                                        \
+		bitpos >>= 1;                                                                                  \
+		if (!bitpos) {                                                                                 \
+			pos++;                                                                                       \
+			bitpos = 0x80;                                                                               \
+		}                                                                                              \
+	}
 
 uint32_t FibonacciDecode(const uint8_t* in, unsigned int* out) {
 	uint32_t pos = 0;
@@ -136,7 +138,7 @@ uint32_t FibonacciDecode(const uint8_t* in, unsigned int* out) {
 	uint32_t series[] = {1, 2, 3, 5, 8, 13, 21};
 
 	for (uint32_t b = 0; b < 256; b++) {
-		bit                  = 0;
+		bit              = 0;
 		uint32_t prevbit = 0;
 		uint32_t bits    = 0;
 		uint32_t a       = 0;

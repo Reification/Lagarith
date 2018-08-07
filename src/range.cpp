@@ -45,10 +45,9 @@ const unsigned int* dist_rest = &dist_restore[0];
 namespace Lagarith {
 // Compress a byte stream using range coding. The freqency table
 // "prob_ranges" will previously have been set up by the Calcprob function
-uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out,
-                                   const uint32_t length) {
-	uint32_t               low    = 0;
-	uint32_t               range  = TOP_VALUE;
+uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out, const uint32_t length) {
+	uint32_t             low    = 0;
+	uint32_t             range  = TOP_VALUE;
 	uint8_t* const       count  = out;
 	const uint8_t* const ending = in + length;
 
@@ -144,9 +143,9 @@ uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out,
 
 #define DecodeNonZero(isrun)                                                                       \
 	if (low < range_top * help) {                                                                    \
-		int          shifter = hash_shift;                                                             \
-		int          rb      = range_bottom;                                                           \
-		uint32_t s       = help;                                                                   \
+		int      shifter = hash_shift;                                                                 \
+		int      rb      = range_bottom;                                                               \
+		uint32_t s       = help;                                                                       \
 		while (s >= 2048) {                                                                            \
 			s += 3;                                                                                      \
 			s >>= 2;                                                                                     \
@@ -159,7 +158,7 @@ uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out,
 		if (tmp < 0)                                                                                   \
 			tmp = 0;                                                                                     \
 		tmp >>= shifter;                                                                               \
-		uint32_t x = range_hash[tmp];                                                              \
+		uint32_t x = range_hash[tmp];                                                                  \
 		while ((range = indexed_ranges[x + 1][0] * help) <= low)                                       \
 			x = indexed_ranges[x + 1][1];                                                                \
 		range -= help * indexed_ranges[x][0];                                                          \
@@ -205,17 +204,17 @@ For the RLE cases, the output is initally set to zero, and then the output
 pointer is advanced by the apropriate value when ever a run is detected in the
 decoder.
 */
-void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out,
-                                     const uint32_t length, uint32_t level) {
+void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out, const uint32_t length,
+                                     uint32_t level) {
 	__assume(length >= 2);
 
 	uint32_t low = (in[0] << 23) + (in[1] << 15) + (in[2] << 7) + (in[3] >> 1);
 	in += 3;
-	uint32_t         range        = TOP_VALUE;
+	uint32_t       range        = TOP_VALUE;
 	const uint8_t* ending       = out + length;
-	const uint32_t   range_top    = prob_ranges[255];
-	const uint32_t   range_bottom = prob_ranges[1];
-	const uint32_t   shift        = scale;
+	const uint32_t range_top    = prob_ranges[255];
+	const uint32_t range_bottom = prob_ranges[1];
+	const uint32_t shift        = scale;
 
 	//const uint8_t* start_in  = in;
 	//uint8_t*       start_out = out;
@@ -256,9 +255,9 @@ void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out,
 	// majority of the values, the indexed value will be the desired
 	// value, so the linear search will terminate with only one
 	// well-predictable conditional.
-	uint8_t range_hash[1 << 12];
-	uint32_t  hs         = 0;
-	uint32_t  hash_range = range_top - range_bottom;
+	uint8_t  range_hash[1 << 12];
+	uint32_t hs         = 0;
+	uint32_t hash_range = range_top - range_bottom;
 	while (hash_range > ((unsigned int)1 << (12 + hs))) {
 		hs++;
 	}
@@ -304,8 +303,8 @@ void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out,
 					if (low < range_top * help) { // The value is > 0 and < 255
 						// Perform a reciprocal multiply to get tmp <= low/help.
 						// The value must be <= for the linear search to work.
-						int          shifter = hash_shift;
-						int          rb      = range_bottom;
+						int      shifter = hash_shift;
+						int      rb      = range_bottom;
 						uint32_t s       = help;
 						// If the value is too large for the r_table,
 						// do roughly (low/(help>>x))>>x, where x is how many

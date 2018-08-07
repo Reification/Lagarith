@@ -73,16 +73,16 @@ struct ThreadData {
 	volatile const uint8_t* source     = nullptr;
 	volatile uint8_t*       dest       = nullptr;
 	volatile uint8_t*       buffer     = nullptr;
-	volatile uint32_t         width      = 0;
-	volatile uint32_t         height     = 0;
-	volatile uint32_t         format     = 0;
-	volatile uint32_t         length     = 0; // uncompressed data length
-	volatile uint32_t         size       = 0; // compressed data length
-	volatile HANDLE               thread     = NULL;
-	volatile HANDLE               StartEvent = NULL;
-	volatile HANDLE               DoneEvent  = NULL;
-	uint32_t                  priority   = 0;
-	CompressClass                 cObj;
+	volatile uint32_t       width      = 0;
+	volatile uint32_t       height     = 0;
+	volatile uint32_t       format     = 0;
+	volatile uint32_t       length     = 0; // uncompressed data length
+	volatile uint32_t       size       = 0; // compressed data length
+	volatile HANDLE         thread     = NULL;
+	volatile HANDLE         StartEvent = NULL;
+	volatile HANDLE         DoneEvent  = NULL;
+	uint32_t                priority   = 0;
+	CompressClass           cObj;
 };
 #else
 struct ThreadData {

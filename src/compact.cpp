@@ -57,7 +57,7 @@ void CompressClass::Scaleprob(uint32_t length) {
 			newlen = 0;
 		}
 
-		a              = 0;
+		a          = 0;
 		uint32_t b = 0;
 		while (newlen) {
 			if (prob_ranges[b + 1]) {
@@ -104,8 +104,7 @@ uint32_t CompressClass::Readprob(const uint8_t* in) {
 // so the total is a power of 2. This allows binary shifts to be used instead of some
 // multiply and divides in the compression/decompression routines.
 // If out is set, the freqencies are also written and the output size returned.
-uint32_t CompressClass::Calcprob(const uint8_t* const in, uint32_t length,
-                                     uint8_t* out) {
+uint32_t CompressClass::Calcprob(const uint8_t* const in, uint32_t length, uint8_t* out) {
 	uint32_t table2[256];
 	memset(prob_ranges, 0, 257 * sizeof(unsigned int));
 	memset(table2, 0, sizeof(table2));
@@ -171,14 +170,13 @@ uint32_t CompressClass::Calcprob(const uint8_t* const in, uint32_t length,
 
 // !!!Warning!!! in[length] through in[length+3] will be thrashed
 // in[length+8] must be readable
-uint32_t CompressClass::Compact(uint8_t* in, uint8_t* out,
-                                    const uint32_t length) {
+uint32_t CompressClass::Compact(uint8_t* in, uint8_t* out, const uint32_t length) {
 	uint32_t bytes_used = 0;
 
 	uint8_t* const buffer_1 = buffer;
 	uint8_t* const buffer_2 = buffer + align_round(length * 3 / 2 + 16, 16);
 
-	int          rle  = 0;
+	int      rle  = 0;
 	uint32_t size = TestAndRLE(in, buffer_1, buffer_2, length, &rle);
 
 	out[0] = rle;
@@ -197,7 +195,7 @@ uint32_t CompressClass::Compact(uint8_t* in, uint8_t* out,
 			}
 
 			*(uint32_t*)(out + 1) = size;
-			uint32_t skip   = Calcprob(b2, size, out + 5);
+			uint32_t skip         = Calcprob(b2, size, out + 5);
 
 
 			skip += Encode(b2, out + 5 + skip, size) + 5;
@@ -222,8 +220,7 @@ uint32_t CompressClass::Compact(uint8_t* in, uint8_t* out,
 }
 
 // this function encapsulates decompressing a byte stream
-void CompressClass::Uncompact(const uint8_t* in, uint8_t* out,
-                              const uint32_t length) {
+void CompressClass::Uncompact(const uint8_t* in, uint8_t* out, const uint32_t length) {
 	int rle = in[0];
 	if (rle &&
 	    (rle < 8 ||
@@ -275,8 +272,8 @@ void CompressClass::Uncompact(const uint8_t* in, uint8_t* out,
 // initalized the buffers used by RLE and range coding routines
 bool CompressClass::InitCompressBuffers(const uint32_t length) {
 	// buffer must be large enough to hold all 3 RLE levels at their worst case
-	buffer = (uint8_t*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8,
-	                                            "Compress::temp");
+	buffer =
+	  (uint8_t*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8, "Compress::temp");
 	if (!buffer) {
 		FreeCompressBuffers();
 		return false;
