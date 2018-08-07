@@ -37,8 +37,8 @@ inline int median(int x, int y, int z) {
 	return x + delta; // min
 }
 
-void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, unsigned int width,
-                        unsigned int length, bool rgbmode) {
+void Block_Predict_SSE2(const uint8_t* source, uint8_t* dest, uint32_t width,
+                        uint32_t length, bool rgbmode) {
 	uintptr_t align_shift = (16 - ((uintptr_t)source & 15)) & 15;
 
 	// predict the bottom row
@@ -198,9 +198,9 @@ void Block_Predict_SSE2(const unsigned char* source, unsigned char* dest, unsign
 	}
 }
 
-static void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned char* rdst,
-                                      unsigned char* gdst, unsigned char* bdst, unsigned int width,
-                                      unsigned int height) {
+static void Decorrelate_And_Split_RGB24_SSE2(const uint8_t* in, uint8_t* rdst,
+                                      uint8_t* gdst, uint8_t* bdst, uint32_t width,
+                                      uint32_t height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	{
@@ -238,9 +238,9 @@ static void Decorrelate_And_Split_RGB24_SSE2(const unsigned char* in, unsigned c
 	}
 }
 
-static void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned char* rdst,
-                                      unsigned char* gdst, unsigned char* bdst, unsigned int width,
-                                      unsigned int height) {
+static void Decorrelate_And_Split_RGB32_SSE2(const uint8_t* in, uint8_t* rdst,
+                                      uint8_t* gdst, uint8_t* bdst, uint32_t width,
+                                      uint32_t height) {
 	uintptr_t a     = 0;
 	uintptr_t align = (uintptr_t)in;
 	align &= 15;
@@ -289,9 +289,9 @@ static void Decorrelate_And_Split_RGB32_SSE2(const unsigned char* in, unsigned c
 	}
 }
 
-static void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsigned char* rsrc,
-                                       const unsigned char* gsrc, const unsigned char* bsrc,
-                                       unsigned int width, unsigned int height) {
+static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rsrc,
+                                       const uint8_t* gsrc, const uint8_t* bsrc,
+                                       uint32_t width, uint32_t height) {
 	const uintptr_t stride = align_round(width * 3, 4);
 
 	// restore the bottom row
@@ -473,7 +473,7 @@ static void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsig
 		x         = _mm_min_epi16(i, x); //min
 		x         = _mm_add_epi8(x, src);
 
-		unsigned int temp = _mm_cvtsi128_si32(_mm_packus_epi16(x, x));
+		uint32_t temp = _mm_cvtsi128_si32(_mm_packus_epi16(x, x));
 		output[a + 0]     = temp;
 		output[a + 1]     = temp >> 8;
 		output[a + 2]     = temp >> 16;
@@ -488,9 +488,9 @@ static void Interleave_And_Restore_RGB24_SSE2(unsigned char* output, const unsig
 	}
 }
 
-static void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsigned char* rsrc,
-                                       const unsigned char* gsrc, const unsigned char* bsrc,
-                                       unsigned int width, unsigned int height) {
+static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rsrc,
+                                       const uint8_t* gsrc, const uint8_t* bsrc,
+                                       uint32_t width, uint32_t height) {
 	const uintptr_t stride = width * 4;
 	{
 		int r = 0;
@@ -708,12 +708,12 @@ static void Interleave_And_Restore_RGB32_SSE2(unsigned char* output, const unsig
 }
 
 #if 0  // reference for non simd implementation
-void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gsrc,
-                                          unsigned char* rsrc, unsigned char* dst,
-                                          unsigned char* buffer, bool rgb24, unsigned int width,
-                                          unsigned int height) {
+void Interleave_And_Restore_Old_Unaligned(uint8_t* bsrc, uint8_t* gsrc,
+                                          uint8_t* rsrc, uint8_t* dst,
+                                          uint8_t* buffer, bool rgb24, uint32_t width,
+                                          uint32_t height) {
 	const uintptr_t stride = align_round(width * 3, 4);
-	unsigned char*  output = (rgb24) ? dst : buffer;
+	uint8_t*  output = (rgb24) ? dst : buffer;
 
 	output[0] = bsrc[0];
 	output[1] = gsrc[0];
@@ -766,29 +766,29 @@ void Interleave_And_Restore_Old_Unaligned(unsigned char* bsrc, unsigned char* gs
 }
 #endif // 0
 
-void Block_Predict(const unsigned char* source, unsigned char* dest, unsigned int width,
-                   unsigned int length, bool rgbmode) {
+void Block_Predict(const uint8_t* source, uint8_t* dest, uint32_t width,
+                   uint32_t length, bool rgbmode) {
 	Block_Predict_SSE2(source, dest, width, length, rgbmode);
 }
 
-void Decorrelate_And_Split_RGB24(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
-                                 unsigned char* bdst, unsigned int width, unsigned int height) {
+void Decorrelate_And_Split_RGB24(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
+                                 uint8_t* bdst, uint32_t width, uint32_t height) {
 	Decorrelate_And_Split_RGB24_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Decorrelate_And_Split_RGB32(const unsigned char* in, unsigned char* rdst, unsigned char* gdst,
-                                 unsigned char* bdst, unsigned int width, unsigned int height) {
+void Decorrelate_And_Split_RGB32(const uint8_t* in, uint8_t* rdst, uint8_t* gdst,
+                                 uint8_t* bdst, uint32_t width, uint32_t height) {
 	Decorrelate_And_Split_RGB32_SSE2(in, rdst, gdst, bdst, width, height);
 }
 
-void Interleave_And_Restore_RGB24(unsigned char* out, const unsigned char* rsrc,
-                                  const unsigned char* gsrc, const unsigned char* bsrc,
-                                  unsigned int width, unsigned int height) {
+void Interleave_And_Restore_RGB24(uint8_t* out, const uint8_t* rsrc,
+                                  const uint8_t* gsrc, const uint8_t* bsrc,
+                                  uint32_t width, uint32_t height) {
 	Interleave_And_Restore_RGB24_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }
 
-void Interleave_And_Restore_RGB32(unsigned char* out, const unsigned char* rsrc,
-                                  const unsigned char* gsrc, const unsigned char* bsrc,
-                                  unsigned int width, unsigned int height) {
+void Interleave_And_Restore_RGB32(uint8_t* out, const uint8_t* rsrc,
+                                  const uint8_t* gsrc, const uint8_t* bsrc,
+                                  uint32_t width, uint32_t height) {
 	Interleave_And_Restore_RGB32_SSE2(out, rsrc, gsrc, bsrc, width, height);
 }

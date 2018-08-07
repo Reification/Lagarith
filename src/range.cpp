@@ -24,7 +24,7 @@
 #define BOTTOM_VALUE 0x00800000
 #define SHIFT_BITS 23
 
-const unsigned int dist_restore[] = {
+const uint32_t dist_restore[] = {
   0,   2,   4,   6,   8,   10,  12,  14,  16,  18,  20,  22,  24,  26,  28,  30,  32,  34,  36,
   38,  40,  42,  44,  46,  48,  50,  52,  54,  56,  58,  60,  62,  64,  66,  68,  70,  72,  74,
   76,  78,  80,  82,  84,  86,  88,  90,  92,  94,  96,  98,  100, 102, 104, 106, 108, 110, 112,
@@ -45,12 +45,12 @@ const unsigned int* dist_rest = &dist_restore[0];
 namespace Lagarith {
 // Compress a byte stream using range coding. The freqency table
 // "prob_ranges" will previously have been set up by the Calcprob function
-unsigned int CompressClass::Encode(const unsigned char* in, unsigned char* out,
-                                   const unsigned int length) {
-	unsigned int               low    = 0;
-	unsigned int               range  = TOP_VALUE;
-	unsigned char* const       count  = out;
-	const unsigned char* const ending = in + length;
+uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out,
+                                   const uint32_t length) {
+	uint32_t               low    = 0;
+	uint32_t               range  = TOP_VALUE;
+	uint8_t* const       count  = out;
+	const uint8_t* const ending = in + length;
 
 	// 74
 	// 66
@@ -67,7 +67,7 @@ unsigned int CompressClass::Encode(const unsigned char* in, unsigned char* out,
 	range_table[255][0] = prob_ranges[255];
 	range_table[255][1] = 0 - prob_ranges[255];
 
-	unsigned int mask255[256];
+	uint32_t mask255[256];
 	memset(&mask255[0], 0, 255 * sizeof(mask255[0]));
 	mask255[255] = 0xffffffff;
 
@@ -146,7 +146,7 @@ unsigned int CompressClass::Encode(const unsigned char* in, unsigned char* out,
 	if (low < range_top * help) {                                                                    \
 		int          shifter = hash_shift;                                                             \
 		int          rb      = range_bottom;                                                           \
-		unsigned int s       = help;                                                                   \
+		uint32_t s       = help;                                                                   \
 		while (s >= 2048) {                                                                            \
 			s += 3;                                                                                      \
 			s >>= 2;                                                                                     \
@@ -159,7 +159,7 @@ unsigned int CompressClass::Encode(const unsigned char* in, unsigned char* out,
 		if (tmp < 0)                                                                                   \
 			tmp = 0;                                                                                     \
 		tmp >>= shifter;                                                                               \
-		unsigned int x = range_hash[tmp];                                                              \
+		uint32_t x = range_hash[tmp];                                                              \
 		while ((range = indexed_ranges[x + 1][0] * help) <= low)                                       \
 			x = indexed_ranges[x + 1][1];                                                                \
 		range -= help * indexed_ranges[x][0];                                                          \
@@ -186,9 +186,9 @@ the Readprob function. RLE is also undone if needed.
 The simplified algorithm for the range decoder (without RLE decoding) is this:
 	while ( out < ending ){
 		CheckForRead();
-		unsigned int help = range >> shift;
-		unsigned int tmp = low/help;
-		unsigned int x;
+		uint32_t help = range >> shift;
+		uint32_t tmp = low/help;
+		uint32_t x;
 		for ( x=0;x<255 && prob_ranges[x+1]<=tmp;x++){};
 		out[0]=x;
 		out++;
@@ -205,20 +205,20 @@ For the RLE cases, the output is initally set to zero, and then the output
 pointer is advanced by the apropriate value when ever a run is detected in the
 decoder.
 */
-void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out,
-                                     const unsigned int length, unsigned int level) {
+void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out,
+                                     const uint32_t length, uint32_t level) {
 	__assume(length >= 2);
 
-	unsigned int low = (in[0] << 23) + (in[1] << 15) + (in[2] << 7) + (in[3] >> 1);
+	uint32_t low = (in[0] << 23) + (in[1] << 15) + (in[2] << 7) + (in[3] >> 1);
 	in += 3;
-	unsigned int         range        = TOP_VALUE;
-	const unsigned char* ending       = out + length;
-	const unsigned int   range_top    = prob_ranges[255];
-	const unsigned int   range_bottom = prob_ranges[1];
-	const unsigned int   shift        = scale;
+	uint32_t         range        = TOP_VALUE;
+	const uint8_t* ending       = out + length;
+	const uint32_t   range_top    = prob_ranges[255];
+	const uint32_t   range_bottom = prob_ranges[1];
+	const uint32_t   shift        = scale;
 
-	//const unsigned char* start_in  = in;
-	//unsigned char*       start_out = out;
+	//const uint8_t* start_in  = in;
+	//uint8_t*       start_out = out;
 
 	//unsigned __int64 t1,t2;
 	//t1 = GetTime();
@@ -233,7 +233,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 	// prob_range > current is located. This allows the linear
 	// search to skip unused entries. In testing, this reduced
 	// the number of linear search lookups by 90%.
-	unsigned int indexed_ranges[256][2];
+	uint32_t indexed_ranges[256][2];
 	{
 		int a    = 0;
 		int next = 0;
@@ -256,20 +256,20 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 	// majority of the values, the indexed value will be the desired
 	// value, so the linear search will terminate with only one
 	// well-predictable conditional.
-	unsigned char range_hash[1 << 12];
-	unsigned int  hs         = 0;
-	unsigned int  hash_range = range_top - range_bottom;
+	uint8_t range_hash[1 << 12];
+	uint32_t  hs         = 0;
+	uint32_t  hash_range = range_top - range_bottom;
 	while (hash_range > ((unsigned int)1 << (12 + hs))) {
 		hs++;
 	}
-	const unsigned int hash_shift = hs;
+	const uint32_t hash_shift = hs;
 	{
-		unsigned int last = 0;
-		for (unsigned int prev = 1; prev < 255; prev++) {
+		uint32_t last = 0;
+		for (uint32_t prev = 1; prev < 255; prev++) {
 			if (indexed_ranges[prev + 1][0] > indexed_ranges[prev][0]) {
-				unsigned int r    = indexed_ranges[prev + 1][0] - range_bottom;
-				unsigned int curr = (r >> hash_shift) + ((r & ((1 << hash_shift) - 1)) != 0);
-				unsigned int size = curr - last;
+				uint32_t r    = indexed_ranges[prev + 1][0] - range_bottom;
+				uint32_t curr = (r >> hash_shift) + ((r & ((1 << hash_shift) - 1)) != 0);
+				uint32_t size = curr - last;
 				__assume(size >= 1);
 				__assume(size <= (1 << 12));
 				memset(range_hash + last, prev, size);
@@ -296,7 +296,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 			// This is the simplest verion of the optimized range decoder to understand,
 			// since it does not have the RLE decoder rolled in.
 			do {
-				unsigned int help = range >> shift;
+				uint32_t help = range >> shift;
 				if (low < help * range_bottom) { // Decode a zero value, most common case
 					range  = help * range_bottom;
 					*out++ = 0;
@@ -306,7 +306,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 						// The value must be <= for the linear search to work.
 						int          shifter = hash_shift;
 						int          rb      = range_bottom;
-						unsigned int s       = help;
+						uint32_t s       = help;
 						// If the value is too large for the r_table,
 						// do roughly (low/(help>>x))>>x, where x is how many
 						// places help got shifted to make it fall in the range.
@@ -327,7 +327,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 							tmp = 0;
 						// Use the hash table to find where to start the linear search.
 						tmp >>= shifter;
-						unsigned int x = range_hash[tmp];
+						uint32_t x = range_hash[tmp];
 
 						// The linear search will correct for the error in the hash table
 						// and for reciprocal multiply results less than low/help.
@@ -351,7 +351,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 				CheckForRead();
 			} while (out < ending);
 		} else if (level == 3) {
-			unsigned int help = range >> shift;
+			uint32_t help = range >> shift;
 			if (low < help * range_bottom) {
 				goto Level_3_Zero_Decode;
 			} else {
@@ -403,7 +403,7 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 
 
 		} else if (level == 1) {
-			unsigned int help = range >> shift;
+			uint32_t help = range >> shift;
 			if (low < help * range_bottom) {
 				goto Level_1_Zero_Decode;
 			} else {
@@ -449,10 +449,10 @@ void CompressClass::Decode_And_DeRLE(const unsigned char* in, unsigned char* out
 
 		} else if (level == 2) {
 			// less optimized since it is not used in recent builds
-			unsigned int run = 0;
+			uint32_t run = 0;
 			do {
 				CheckForRead();
-				unsigned int help = range >> shift;
+				uint32_t help = range >> shift;
 				if (low < help * range_bottom) {
 					range = help * range_bottom;
 					if (run < 2) {

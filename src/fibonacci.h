@@ -1,4 +1,4 @@
 #pragma once
 
-unsigned int FibonacciDecode(const unsigned char* in, unsigned int* out);
-unsigned int FibonacciEncode(unsigned int* in, unsigned char* out);
+uint32_t FibonacciDecode(const uint8_t* in, unsigned int* out);
+uint32_t FibonacciEncode(unsigned int* in, uint8_t* out);

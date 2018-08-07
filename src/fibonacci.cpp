@@ -15,10 +15,8 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
+#include "lagarith_internal.h"
 #include "fibonacci.h"
-#include <stdlib.h>
-#include <memory.h>
-#include <assert.h>
 
 // This file is used to compress the header without needing a header for the header...
 // This is acheived due to the fact that the byte frequencies will be concentrated around
@@ -41,24 +39,24 @@
 	}\
 }
 
-unsigned int FibonacciEncode(unsigned int* in, unsigned char* out) {
-	unsigned char output[12];
-	unsigned int  pos     = 0;
-	unsigned int  bitpos  = 0x80;
+uint32_t FibonacciEncode(unsigned int* in, uint8_t* out) {
+	uint8_t output[12];
+	uint32_t  pos     = 0;
+	uint32_t  bitpos  = 0x80;
 	out[0]                = 0;
-	unsigned int series[] = {1, 2, 3, 5, 8, 13, 21};
-	for (unsigned int b = 0; b < 256; b++) {
+	uint32_t series[] = {1, 2, 3, 5, 8, 13, 21};
+	for (uint32_t b = 0; b < 256; b++) {
 		memset(output, 0, 12);
-		unsigned int num = in[b] + 1; // value needs to be >= 1
+		uint32_t num = in[b] + 1; // value needs to be >= 1
 
 		// calculate Fibonacci part
-		unsigned int a;
-		unsigned int bits = 32;
+		uint32_t a;
+		uint32_t bits = 32;
 		for (; !(num & 0x80000000) && bits; bits--)
 			num <<= 1;
 		num <<= 1;
 		assert(bits);
-		unsigned int bits2 = bits;
+		uint32_t bits2 = bits;
 
 		while (bits) {
 			for (a = 0; series[a] <= bits; a++)
@@ -71,17 +69,17 @@ unsigned int FibonacciEncode(unsigned int* in, unsigned char* out) {
 			;
 		a++;
 		output[a] = 1;
-		for (unsigned int x = 0; x <= a; x++)
+		for (uint32_t x = 0; x <= a; x++)
 			writeBit(output[x]);
 		bits2--;
 
 		//write numerical part
-		for (unsigned int place = 0x80000000; bits2; bits2--) {
+		for (uint32_t place = 0x80000000; bits2; bits2--) {
 			writeBit(num & place);
 			place >>= 1;
 		}
 		if (in[b] == 0) {
-			unsigned int i;
+			uint32_t i;
 			for (i = 1; i + b < 256 && in[b + i] == 0; i++)
 				;
 			b += i - 1;
@@ -108,12 +106,12 @@ unsigned int FibonacciEncode(unsigned int* in, unsigned char* out) {
 				;
 			a++;
 			output[a] = 1;
-			for (unsigned int x = 0; x <= a; x++)
+			for (uint32_t x = 0; x <= a; x++)
 				writeBit(output[x]);
 			bits2--;
 
 			//write numerical part
-			for (unsigned int place = 0x80000000; bits2; bits2--) {
+			for (uint32_t place = 0x80000000; bits2; bits2--) {
 				writeBit(num & place);
 				place >>= 1;
 			}
@@ -131,17 +129,17 @@ unsigned int FibonacciEncode(unsigned int* in, unsigned char* out) {
 	}\
 }
 
-unsigned int FibonacciDecode(const unsigned char* in, unsigned int* out) {
-	unsigned int pos = 0;
-	unsigned int bit;
-	unsigned int bitpos   = 0x80;
-	unsigned int series[] = {1, 2, 3, 5, 8, 13, 21};
+uint32_t FibonacciDecode(const uint8_t* in, unsigned int* out) {
+	uint32_t pos = 0;
+	uint32_t bit;
+	uint32_t bitpos   = 0x80;
+	uint32_t series[] = {1, 2, 3, 5, 8, 13, 21};
 
-	for (unsigned int b = 0; b < 256; b++) {
+	for (uint32_t b = 0; b < 256; b++) {
 		bit                  = 0;
-		unsigned int prevbit = 0;
-		unsigned int bits    = 0;
-		unsigned int a       = 0;
+		uint32_t prevbit = 0;
+		uint32_t bits    = 0;
+		uint32_t a       = 0;
 		for (; !(prevbit && bit); a++) {
 			prevbit = bit;
 			readBit();
@@ -149,7 +147,7 @@ unsigned int FibonacciDecode(const unsigned char* in, unsigned int* out) {
 				bits += series[a];
 		}
 		bits--;
-		unsigned int value = 1;
+		uint32_t value = 1;
 		for (a = 0; a < bits; a++) {
 			readBit();
 			value <<= 1;

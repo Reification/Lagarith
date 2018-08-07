@@ -20,7 +20,7 @@
 namespace Lagarith {
 
 // initalize the codec for compression
-bool Codec::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerChannel) {
+bool Codec::CompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerChannel) {
 	if (started == 0x1337) {
 		CompressEnd();
 	}
@@ -32,12 +32,12 @@ bool Codec::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerCh
 
 	length = width * height * format / 8;
 
-	unsigned int buffer_size;
+	uint32_t buffer_size;
 	buffer_size = align_round(width, 16) * height * 4 + 1024;
 
-	buffer  = (unsigned char*)lag_aligned_malloc(buffer, buffer_size, 16, "buffer");
-	buffer2 = (unsigned char*)lag_aligned_malloc(buffer2, buffer_size, 16, "buffer2");
-	prev    = (unsigned char*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
+	buffer  = (uint8_t*)lag_aligned_malloc(buffer, buffer_size, 16, "buffer");
+	buffer2 = (uint8_t*)lag_aligned_malloc(buffer2, buffer_size, 16, "buffer2");
+	prev    = (uint8_t*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
 
 	if (!buffer || !buffer2 || !prev) {
 		lag_aligned_free(buffer, "buffer");
@@ -50,11 +50,13 @@ bool Codec::CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerCh
 		return false;
 	}
 
+#if LAGARITH_MULTITHREAD_SUPPORT
 	if (multithreading) {
 		if (!InitThreads(true)) {
 			return false;
 		}
 	}
+#endif
 
 	started = 0x1337;
 
@@ -80,11 +82,12 @@ void Codec::CompressEnd() {
 // see this doc entry for setting thread priority of std::thread using native handle + pthreads.
 // https://en.cppreference.com/w/cpp/thread/thread/native_handle
 
-unsigned int Codec::HandleTwoCompressionThreads(unsigned int chan_size) {
-	unsigned int channel_sizes[3];
+uint32_t Codec::HandleTwoCompressionThreads(uint32_t chan_size) {
+#if LAGARITH_MULTITHREAD_SUPPORT
+	uint32_t channel_sizes[3];
 	channel_sizes[0] = chan_size;
 
-	unsigned int current_size = chan_size + 9;
+	uint32_t current_size = chan_size + 9;
 
 	HANDLE events[2] = {threads[0].DoneEvent, threads[1].DoneEvent};
 
@@ -94,20 +97,20 @@ unsigned int Codec::HandleTwoCompressionThreads(unsigned int chan_size) {
 	ThreadData* finished = &threads[pos];
 	ThreadData* running  = &threads[!pos];
 
-	((DWORD*)(out + 1))[pos] = current_size;
+	((uint32_t*)(out + 1))[pos] = current_size;
 	channel_sizes[pos + 1]   = finished->size;
-	memcpy(out + current_size, (unsigned char*)finished->dest, channel_sizes[pos + 1]);
+	memcpy(out + current_size, (uint8_t*)finished->dest, channel_sizes[pos + 1]);
 	current_size += finished->size;
 
 	pos                      = !pos;
-	((DWORD*)(out + 1))[pos] = current_size;
+	((uint32_t*)(out + 1))[pos] = current_size;
 
 	WaitForSingleObject(running->DoneEvent, INFINITE);
 
 	finished               = running;
 	channel_sizes[pos + 1] = finished->size;
 
-	memcpy(out + current_size, (unsigned char*)finished->dest, channel_sizes[pos + 1]);
+	memcpy(out + current_size, (uint8_t*)finished->dest, channel_sizes[pos + 1]);
 	current_size += finished->size;
 
 	if (channel_sizes[0] >= channel_sizes[1] && channel_sizes[0] >= channel_sizes[2]) {
@@ -133,16 +136,19 @@ unsigned int Codec::HandleTwoCompressionThreads(unsigned int chan_size) {
 		}
 	}
 	return current_size;
+#else  // LAGARITH_MULTITHREAD_SUPPORT
+	return 0;
+#endif // LAGARITH_MULTITHREAD_SUPPORT
 }
 
 // Encode a typical RGB24 frame, input can be RGB24 or RGB32
 void Codec::CompressRGB24(unsigned int* frameSizeOut) {
-	//const unsigned char* src       = in;
-	const unsigned int pixels    = width * height;
-	const unsigned int block_len = align_round(pixels + 32, 16);
-	unsigned char*     bplane    = buffer;
-	unsigned char*     gplane    = buffer + block_len;
-	unsigned char*     rplane    = buffer + block_len * 2;
+	//const uint8_t* src       = in;
+	const uint32_t pixels    = width * height;
+	const uint32_t block_len = align_round(pixels + 32, 16);
+	uint8_t*     bplane    = buffer;
+	uint8_t*     gplane    = buffer + block_len;
+	uint8_t*     rplane    = buffer + block_len * 2;
 
 
 	// convert the interleaved channels to planer, aligning if needed
@@ -153,11 +159,14 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 	}
 
 	int size = 0;
-	if (!multithreading) { // perform prediction
+#if LAGARITH_MULTITHREAD_SUPPORT
+	if (!multithreading)
+#endif
+	{ // perform prediction
 
-		unsigned char* bpred = buffer2;
-		unsigned char* gpred = buffer2 + block_len;
-		unsigned char* rpred = buffer2 + block_len * 2;
+		uint8_t* bpred = buffer2;
+		uint8_t* gpred = buffer2 + block_len;
+		uint8_t* rpred = buffer2 + block_len * 2;
 
 		Block_Predict(bplane, bpred, width, pixels, true);
 		Block_Predict(gplane, gpred, width, pixels, true);
@@ -166,15 +175,17 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 		size = cObj->Compact(bpred, out + 9, pixels);
 		size += 9;
 
-		*(UINT32*)(out + 1) = size;
+		*(uint32_t*)(out + 1) = size;
 		size += cObj->Compact(gpred, out + size, pixels);
 
-		*(UINT32*)(out + 5) = size;
+		*(uint32_t*)(out + 5) = size;
 		size += cObj->Compact(rpred, out + size, pixels);
 
-	} else {
-		unsigned char* rcomp = prev;
-		unsigned char* gcomp = prev + align_round(length / 2 + 128, 16);
+	}
+#if LAGARITH_MULTITHREAD_SUPPORT
+	else {
+		uint8_t* rcomp = prev;
+		uint8_t* gcomp = prev + align_round(length / 2 + 128, 16);
 
 		threads[0].source = gplane;
 		threads[0].dest   = gcomp;
@@ -185,13 +196,14 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 		threads[1].length = pixels;
 		SetEvent(threads[1].StartEvent);
 
-		unsigned char* bpred = buffer2;
+		uint8_t* bpred = buffer2;
 		Block_Predict(bplane, bpred, width, block_len, true);
 
-		unsigned int blue_size = cObj->Compact(bpred, out + 9, pixels);
+		uint32_t blue_size = cObj->Compact(bpred, out + 9, pixels);
 
 		size = HandleTwoCompressionThreads(blue_size);
 	}
+#endif // LAGARITH_MULTITHREAD_SUPPORT
 
 	out[0] = ARITH_RGB24;
 
@@ -217,10 +229,11 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 // handed off to other functions depending on the color space and settings
 
 bool Codec::Compress(const void* src, void* dst, unsigned int* frameSizeOut) {
-	in  = (const unsigned char*)src;
-	out = (unsigned char*)dst;
+	in  = (const uint8_t*)src;
+	out = (uint8_t*)dst;
 
-	assert(width && height && format && src && dst && frameSizeOut && "CompressBegin not called or invalid frame parameters");
+	assert(width && height && format && src && dst && frameSizeOut &&
+	       "CompressBegin not called or invalid frame parameters");
 
 	if (width && height && format && src && dst && frameSizeOut) {
 		CompressRGB24(frameSizeOut);

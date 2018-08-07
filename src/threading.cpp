@@ -18,23 +18,26 @@
 #include "lagarith_internal.h"
 
 namespace Lagarith {
+
+#if LAGARITH_MULTITHREAD_SUPPORT
+
 static DWORD WINAPI encode_worker_thread(LPVOID i) {
 	ThreadData* threaddata = (ThreadData*)i;
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 
-	const unsigned int   width  = threaddata->width;
-	unsigned char* const buffer = (unsigned char*)threaddata->buffer;
+	const uint32_t   width  = threaddata->width;
+	uint8_t* const buffer = (uint8_t*)threaddata->buffer;
 	assert(buffer != NULL);
 
 	while (true) {
-		unsigned int length = threaddata->length;
+		uint32_t length = threaddata->length;
 		if (length == 0xFFFFFFFF) {
 			break;
 		} else if (length > 0) {
-			unsigned char* src  = (unsigned char*)threaddata->source;
-			unsigned char* dest = (unsigned char*)threaddata->dest;
-			unsigned char* dst  = buffer + ((uintptr_t)src & 15);
+			uint8_t* src  = (uint8_t*)threaddata->source;
+			uint8_t* dest = (uint8_t*)threaddata->dest;
+			uint8_t* dst  = buffer + ((uintptr_t)src & 15);
 
 			Block_Predict(src, dst, width, length, /*rgbmode=*/true);
 
@@ -58,13 +61,13 @@ static DWORD WINAPI decode_worker_thread(LPVOID i) {
 
 	WaitForSingleObject(threaddata->StartEvent, INFINITE);
 	while (true) {
-		unsigned int length = threaddata->length;
+		uint32_t length = threaddata->length;
 
 		if (length == 0xFFFFFFFF) {
 			break;
 		} else if (length > 0) {
-			unsigned char* src  = (unsigned char*)threaddata->source;
-			unsigned char* dest = (unsigned char*)threaddata->dest;
+			uint8_t* src  = (uint8_t*)threaddata->source;
+			uint8_t* dest = (uint8_t*)threaddata->dest;
 			threaddata->cObj.Uncompact(src, dest, length);
 			threaddata->length = 0;
 		} else {
@@ -78,7 +81,7 @@ static DWORD WINAPI decode_worker_thread(LPVOID i) {
 }
 
 bool Codec::InitThreads(int encode) {
-	const unsigned int use_format = format;
+	const uint32_t use_format = format;
 	DWORD              temp       = 0;
 
 	assert(width && height && "CompressBegin/DecompressBegin not called!");
@@ -140,9 +143,9 @@ bool Codec::InitThreads(int encode) {
 	}
 
 	if (!memerror && !interror && encode) {
-		threads[0].buffer = (unsigned char*)lag_aligned_malloc((void*)threads[0].buffer, buffer_size,
+		threads[0].buffer = (uint8_t*)lag_aligned_malloc((void*)threads[0].buffer, buffer_size,
 		                                                       16, "threads[0].buffer");
-		threads[1].buffer = (unsigned char*)lag_aligned_malloc((void*)threads[1].buffer, buffer_size,
+		threads[1].buffer = (uint8_t*)lag_aligned_malloc((void*)threads[1].buffer, buffer_size,
 		                                                       16, "threads[1].buffer");
 		if (threads[0].buffer == NULL || threads[1].buffer == NULL) {
 			memerror = true;
@@ -213,4 +216,15 @@ void Codec::EndThreads() {
 	threads[1].length = 0;
 }
 
+#else // LAGARITH_MULTITHREAD_SUPPORT
+
+bool Codec::InitThreads(int encode) {
+	(void)encode;
+	return false;
+}
+
+void Codec::EndThreads() {
+}
+
+#endif // LAGARITH_MULTITHREAD_SUPPORT
 } // namespace Lagarith

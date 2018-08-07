@@ -3,7 +3,7 @@
 // for all x <= 0x80000000 and all 0<y<2048.
 // Values of x/y for y >= 2048 can be aproximated using this table
 // with acceptable accuracy for the range decoder
-const unsigned int reciprocal_table[] = {
+const uint32_t reciprocal_table[] = {
   0,          0xFFFFFFFF, 0x80000000, 0x55555555, 0x40000000, 0x33333333, 0x2AAAAAAA, 0x24924924,
   0x20000000, 0x1C71C71C, 0x19999999, 0x1745D174, 0x15555555, 0x13B13B13, 0x12492492, 0x11111111,
   0x10000000, 0xF0F0F0F,  0xE38E38E,  0xD79435E,  0xCCCCCCC,  0xC30C30C,  0xBA2E8BA,  0xB21642C,

@@ -3,31 +3,31 @@
 namespace Lagarith {
 class CompressClass {
 public:
-	unsigned int prob_ranges[257] = {}; // Byte probablity range table
-	unsigned int scale = 0;            // Used to replace some multiply/divides with binary shifts,
+	uint32_t prob_ranges[257] = {}; // Byte probablity range table
+	uint32_t scale = 0;            // Used to replace some multiply/divides with binary shifts,
 	                               // (1<<scale) is equal to the cumulative probabilty of all bytes
 
-	unsigned char* buffer = nullptr; // buffer to perform RLE when encoding
+	uint8_t* buffer = nullptr; // buffer to perform RLE when encoding
 
 	CompressClass();
 	~CompressClass();
 
-	bool InitCompressBuffers(const unsigned int length);
+	bool InitCompressBuffers(const uint32_t length);
 	void FreeCompressBuffers();
 
-	unsigned int Compact(unsigned char* in, unsigned char* out, const unsigned int length);
+	uint32_t Compact(uint8_t* in, uint8_t* out, const uint32_t length);
 
-	void Uncompact(const unsigned char* in, unsigned char* out,
-	               const unsigned int length);
+	void Uncompact(const uint8_t* in, uint8_t* out,
+	               const uint32_t length);
 
-	unsigned int Calcprob(const unsigned char* in, unsigned int length, unsigned char* out = 0);
-	void         Scaleprob(const unsigned int length);
-	unsigned int Readprob(const unsigned char* in);
+	uint32_t Calcprob(const uint8_t* in, uint32_t length, uint8_t* out = 0);
+	void         Scaleprob(const uint32_t length);
+	uint32_t Readprob(const uint8_t* in);
 
-	unsigned int Encode(const unsigned char* in, unsigned char* out, const unsigned int length);
+	uint32_t Encode(const uint8_t* in, uint8_t* out, const uint32_t length);
 
-	void         Decode_And_DeRLE(const unsigned char* in, unsigned char* out,
-	                              const unsigned int length, unsigned int level);
+	void         Decode_And_DeRLE(const uint8_t* in, uint8_t* out,
+	                              const uint32_t length, uint32_t level);
 };
 }
 

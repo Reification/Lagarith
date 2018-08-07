@@ -18,19 +18,19 @@
 
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
-	int      m_width    = 0;
-	int      m_height   = 0;
-	int      m_channels = 0;
-	int      m_alloced  = 0;
+	uint32_t      m_width    = 0;
+	uint32_t      m_height   = 0;
+	uint32_t      m_channels = 0;
+	uint32_t      m_alloced  = 0;
 
 	Raster() = default;
 	~Raster() { Free(); }
 
-	unsigned int GetSizeBytes() const { return m_width * m_height * m_channels; }
+	uint32_t GetSizeBytes() const { return m_width * m_height * m_channels; }
 
-	bool Load(const char* path, int channels = 0) {
+	bool Load(const char* path, uint32_t channels = 0) {
 		Free();
-		m_pBits = stbi_load(path, &m_width, &m_height, &m_channels, channels);
+		m_pBits = stbi_load(path, (int*)&m_width, (int*)&m_height, (int*)&m_channels, (int)channels);
 		if (channels && m_pBits) {
 			m_channels = channels;
 		}
@@ -42,17 +42,17 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, m_width, m_height, m_channels, m_pBits, m_width * m_channels)) {
+		if (stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits, (int)(m_width * m_channels))) {
 			return true;
 		}
 
 		return false;
 	}
 
-	void Alloc(int w, int h, int c) {
+	void Alloc(uint32_t w, uint32_t h, uint32_t c) {
 		Free();
 
-		if (unsigned int sizeBytes = w * h * c) {
+		if (uint32_t sizeBytes = w * h * c) {
 			m_width    = w;
 			m_height   = h;
 			m_channels = c;
@@ -79,10 +79,10 @@ struct Raster {
 };
 
 struct RasterSequence {
-	bool Load(int channels, const char* format, int first, int last, int step = 1) {
+	bool Load(uint32_t channels, const char* format, uint32_t first, uint32_t last, uint32_t step = 1) {
 		char imageName[128];
-		int  j   = first;
-		int  end = last + step;
+		uint32_t  j   = first;
+		uint32_t  end = last + step;
 
 		Free();
 
@@ -126,9 +126,9 @@ struct RasterSequence {
 		return true;
 	}
 
-	void Alloc(int w, int h, int channels, int frames) {
+	void Alloc(uint32_t w, uint32_t h, uint32_t channels, uint32_t frames) {
 		Free();
-		for (int i = 0; i < frames && i < sizeof(m_frames) / sizeof(m_frames[0]); i++) {
+		for (uint32_t i = 0; i < frames && i < sizeof(m_frames) / sizeof(m_frames[0]); i++) {
 			m_frames[i].Alloc(w, h, channels);
 			m_frameCount++;
 		}
@@ -145,23 +145,23 @@ struct RasterSequence {
 		m_frameCount = 0;
 	}
 
-	int      GetWidth() const { return m_frames[0].m_width; }
-	int      GetHeight() const { return m_frames[0].m_height; }
-	int      GetChannels() const { return m_frames[0].m_channels; }
-	stbi_uc* GetBits(int frameIdx) const {
+	uint32_t      GetWidth() const { return m_frames[0].m_width; }
+	uint32_t      GetHeight() const { return m_frames[0].m_height; }
+	uint32_t      GetChannels() const { return m_frames[0].m_channels; }
+	stbi_uc* GetBits(uint32_t frameIdx) const {
 		return frameIdx < m_frameCount ? m_frames[frameIdx].m_pBits : nullptr;
 	}
 
-	unsigned int GetFrameSizeBytes() const { return m_frames[0].GetSizeBytes(); }
-	unsigned int GetSequenceSizeBytes() const { return GetFrameSizeBytes() * m_frameCount; }
-	unsigned int GetFrameCount() const { return m_frameCount; }
+	uint32_t GetFrameSizeBytes() const { return m_frames[0].GetSizeBytes(); }
+	uint32_t GetSequenceSizeBytes() const { return GetFrameSizeBytes() * m_frameCount; }
+	uint32_t GetFrameCount() const { return m_frameCount; }
 
 private:
-	unsigned int m_frameCount = 0;
+	uint32_t m_frameCount = 0;
 	Raster       m_frames[5];
 };
 
-static bool testEncodeDecode(int channelCount) {
+static bool testEncodeDecode(uint32_t channelCount) {
 	RasterSequence srcFrames;
 	RasterSequence decompressedFrames;
 	bool           result = false;
@@ -172,11 +172,11 @@ static bool testEncodeDecode(int channelCount) {
 
 	decompressedFrames.Alloc(srcFrames);
 
-	const unsigned int   inputFrameSize          = srcFrames.GetFrameSizeBytes();
-	unsigned int         compressedFrameSizes[5] = {};
+	const uint32_t   inputFrameSize          = srcFrames.GetFrameSizeBytes();
+	uint32_t         compressedFrameSizes[5] = {};
 	void*                compressedFrames[5]     = {};
 	std::vector<uint8_t> compressedBuf;
-	unsigned int         totalCompressedSize = 0;
+	uint32_t         totalCompressedSize = 0;
 
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
@@ -196,7 +196,7 @@ static bool testEncodeDecode(int channelCount) {
 
 		const void* pSrcBits = nullptr;
 		uint8_t*    pDstBits = compressedBuf.data();
-		int         i        = 0;
+		uint32_t         i        = 0;
 
 		for (; !!(pSrcBits = srcFrames.GetBits(i)); i++) {
 			result = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
@@ -234,7 +234,7 @@ static bool testEncodeDecode(int channelCount) {
 		}
 
 		uint8_t* pDstBits = nullptr;
-		int      i        = 0;
+		uint32_t      i        = 0;
 
 		for (; !!(pDstBits = decompressedFrames.GetBits(i)); i++) {
 			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
@@ -251,9 +251,9 @@ static bool testEncodeDecode(int channelCount) {
 
 	// round trip verification
 	{
-		int mismatches = 0;
+		uint32_t mismatches = 0;
 
-		for (int i = 0; i < srcFrames.GetFrameCount(); i++) {
+		for (uint32_t i = 0; i < srcFrames.GetFrameCount(); i++) {
 			const stbi_uc* pOrigBits      = srcFrames.GetBits(i);
 			const stbi_uc* pRoundTripBits = decompressedFrames.GetBits(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {

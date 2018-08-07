@@ -39,8 +39,10 @@ Codec::~Codec() {
 void Codec::SetMultithreaded(bool mt) {
 	assert(width == 0 &&
 	       "multithreading must be configured before calling CompressBegin or DecompressBegin.");
+#if LAGARITH_MULTITHREAD_SUPPORT
 	if (!width)
 		multithreading = mt;
+#endif
 }
 
 } // namespace Lagarith

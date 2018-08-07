@@ -23,11 +23,11 @@ namespace Lagarith {
 
 // scale the byte probablities so the cumulative
 // probabilty is equal to a power of 2
-void CompressClass::Scaleprob(unsigned int length) {
+void CompressClass::Scaleprob(uint32_t length) {
 	assert(length > 0);
 	assert(length < 0x80000000);
 
-	unsigned int temp = 1;
+	uint32_t temp = 1;
 	while (temp < length)
 		temp <<= 1;
 
@@ -44,7 +44,7 @@ void CompressClass::Scaleprob(unsigned int length) {
 		for (a = 0; a < 256; a++) {
 			prob_ranges[a + 1] = (int)temp_array[a];
 		}
-		unsigned int newlen = 0;
+		uint32_t newlen = 0;
 		for (a = 1; a < 257; a++) {
 			newlen += prob_ranges[a];
 		}
@@ -58,7 +58,7 @@ void CompressClass::Scaleprob(unsigned int length) {
 		}
 
 		a              = 0;
-		unsigned int b = 0;
+		uint32_t b = 0;
 		while (newlen) {
 			if (prob_ranges[b + 1]) {
 				prob_ranges[b + 1]++;
@@ -78,9 +78,9 @@ void CompressClass::Scaleprob(unsigned int length) {
 }
 
 // read the byte frequency header
-unsigned int CompressClass::Readprob(const unsigned char* in) {
-	unsigned int length = 0;
-	unsigned int skip;
+uint32_t CompressClass::Readprob(const uint8_t* in) {
+	uint32_t length = 0;
+	uint32_t skip;
 
 	//prob_ranges[0]=0;
 	memset(prob_ranges, 0, sizeof(prob_ranges));
@@ -89,7 +89,7 @@ unsigned int CompressClass::Readprob(const unsigned char* in) {
 	if (!skip)
 		return 0;
 
-	for (unsigned int a = 1; a < 257; a++) {
+	for (uint32_t a = 1; a < 257; a++) {
 		length += prob_ranges[a];
 	}
 
@@ -104,12 +104,12 @@ unsigned int CompressClass::Readprob(const unsigned char* in) {
 // so the total is a power of 2. This allows binary shifts to be used instead of some
 // multiply and divides in the compression/decompression routines.
 // If out is set, the freqencies are also written and the output size returned.
-unsigned int CompressClass::Calcprob(const unsigned char* const in, unsigned int length,
-                                     unsigned char* out) {
-	unsigned int table2[256];
+uint32_t CompressClass::Calcprob(const uint8_t* const in, uint32_t length,
+                                     uint8_t* out) {
+	uint32_t table2[256];
 	memset(prob_ranges, 0, 257 * sizeof(unsigned int));
 	memset(table2, 0, sizeof(table2));
-	unsigned int a = 0;
+	uint32_t a = 0;
 	for (a = 0; a < (length & (~1)); a += 2) {
 		prob_ranges[in[a] + 1]++;
 		table2[in[a + 1]]++;
@@ -133,7 +133,7 @@ unsigned int CompressClass::Calcprob(const unsigned char* const in, unsigned int
 		for (int a = 0; a < 256; a++) {
 			temp[a] = ((int)prob_ranges[a + 1]) * factor;
 		}
-		unsigned int total = 0;
+		uint32_t total = 0;
 		for (int a = 0; a < 256; a++) {
 			int scaled_val = (int)temp[a];
 			if (scaled_val == 0 && prob_ranges[a + 1]) {
@@ -155,7 +155,7 @@ unsigned int CompressClass::Calcprob(const unsigned char* const in, unsigned int
 		length = clamp_size;
 	}
 
-	unsigned int size = 0;
+	uint32_t size = 0;
 	if (out != NULL) {
 		size = FibonacciEncode(&prob_ranges[1], out);
 	}
@@ -171,15 +171,15 @@ unsigned int CompressClass::Calcprob(const unsigned char* const in, unsigned int
 
 // !!!Warning!!! in[length] through in[length+3] will be thrashed
 // in[length+8] must be readable
-unsigned int CompressClass::Compact(unsigned char* in, unsigned char* out,
-                                    const unsigned int length) {
-	unsigned int bytes_used = 0;
+uint32_t CompressClass::Compact(uint8_t* in, uint8_t* out,
+                                    const uint32_t length) {
+	uint32_t bytes_used = 0;
 
-	unsigned char* const buffer_1 = buffer;
-	unsigned char* const buffer_2 = buffer + align_round(length * 3 / 2 + 16, 16);
+	uint8_t* const buffer_1 = buffer;
+	uint8_t* const buffer_2 = buffer + align_round(length * 3 / 2 + 16, 16);
 
 	int          rle  = 0;
-	unsigned int size = TestAndRLE(in, buffer_1, buffer_2, length, &rle);
+	uint32_t size = TestAndRLE(in, buffer_1, buffer_2, length, &rle);
 
 	out[0] = rle;
 	if (rle) {
@@ -189,15 +189,15 @@ unsigned int CompressClass::Compact(unsigned char* in, unsigned char* out,
 			bytes_used = 2;
 
 		} else {
-			unsigned char* b2;
+			uint8_t* b2;
 			if (rle == 1) {
 				b2 = buffer_1;
 			} else {
 				b2 = buffer_2;
 			}
 
-			*(UINT32*)(out + 1) = size;
-			unsigned int skip   = Calcprob(b2, size, out + 5);
+			*(uint32_t*)(out + 1) = size;
+			uint32_t skip   = Calcprob(b2, size, out + 5);
 
 
 			skip += Encode(b2, out + 5 + skip, size) + 5;
@@ -210,7 +210,7 @@ unsigned int CompressClass::Compact(unsigned char* in, unsigned char* out,
 			bytes_used = skip;
 		}
 	} else {
-		unsigned int skip = Calcprob(in, length, out + 1);
+		uint32_t skip = Calcprob(in, length, out + 1);
 		skip += Encode(in, out + skip + 1, length) + 1;
 		bytes_used = skip;
 	}
@@ -222,14 +222,14 @@ unsigned int CompressClass::Compact(unsigned char* in, unsigned char* out,
 }
 
 // this function encapsulates decompressing a byte stream
-void CompressClass::Uncompact(const unsigned char* in, unsigned char* out,
-                              const unsigned int length) {
+void CompressClass::Uncompact(const uint8_t* in, uint8_t* out,
+                              const uint32_t length) {
 	int rle = in[0];
 	if (rle &&
 	    (rle < 8 ||
 	     rle == 0xff)) { // any other values may indicate a corrupted RLE level from 1.3.0 or 1.3.1
 		if (rle < 4) {
-			unsigned int size = *(UINT32*)(in + 1);
+			uint32_t size = *(uint32_t*)(in + 1);
 			if (size >= length) { // should not happen, most likely a corrupted 1.3.x encoding
 				assert(false);
 				int skip;
@@ -273,9 +273,9 @@ void CompressClass::Uncompact(const unsigned char* in, unsigned char* out,
 }
 
 // initalized the buffers used by RLE and range coding routines
-bool CompressClass::InitCompressBuffers(const unsigned int length) {
+bool CompressClass::InitCompressBuffers(const uint32_t length) {
 	// buffer must be large enough to hold all 3 RLE levels at their worst case
-	buffer = (unsigned char*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8,
+	buffer = (uint8_t*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8,
 	                                            "Compress::temp");
 	if (!buffer) {
 		FreeCompressBuffers();

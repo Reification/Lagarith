@@ -28,49 +28,48 @@ public:
 	Codec();
 	~Codec();
 
-	void SetMultithreaded(bool mt);
-
-	bool CompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
+	bool CompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel);
 	bool Compress(const void* src, void* dst, unsigned int* frameSizeOut);
 	void CompressEnd();
 
-	bool DecompressBegin(unsigned int w, unsigned int h, unsigned int bitsPerPixel);
-	bool Decompress(const void* src, unsigned int compressedFrameSize, void* dst);
+	bool DecompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel);
+	bool Decompress(const void* src, uint32_t compressedFrameSize, void* dst);
 	void DecompressEnd();
+
+	void SetMultithreaded(bool mt);
 
 private:
 	bool InitThreads(int encode);
 	void EndThreads();
-	void  CompressRGB24(unsigned int* frameSizeOut);
+	void CompressRGB24(unsigned int* frameSizeOut);
 
-	unsigned int HandleTwoCompressionThreads(unsigned int chan_size);
+	uint32_t HandleTwoCompressionThreads(uint32_t chan_size);
 
-	void SetSolidFrameRGB24(const unsigned int r, const unsigned int g, const unsigned int b);
-	void SetSolidFrameRGB32(const unsigned int r, const unsigned int g, const unsigned int b,
-	                        const unsigned int a);
-	void Decode3Channels(unsigned char* dst1, unsigned int len1, unsigned char* dst2,
-	                     unsigned int len2, unsigned char* dst3, unsigned int len3);
+	void SetSolidFrameRGB24(const uint32_t r, const uint32_t g, const uint32_t b);
+	void SetSolidFrameRGB32(const uint32_t r, const uint32_t g, const uint32_t b,
+	                        const uint32_t a);
+	void Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2,
+	                     uint32_t len2, uint8_t* dst3, uint32_t len3);
 	void ArithRGBDecompress();
 
 private:
 	int                  started = 0;
-	unsigned char*       buffer  = nullptr;
-	unsigned char*       prev    = nullptr;
-	const unsigned char* in      = nullptr;
-	unsigned char*       out     = nullptr;
-	unsigned char*       buffer2 = nullptr;
+	uint8_t*       buffer  = nullptr;
+	uint8_t*       prev    = nullptr;
+	const uint8_t* in      = nullptr;
+	uint8_t*       out     = nullptr;
+	uint8_t*       buffer2 = nullptr;
 
-	unsigned int length = 0;
-	unsigned int width  = 0;
-	unsigned int height = 0;
+	uint32_t length = 0;
+	uint32_t width  = 0;
+	uint32_t height = 0;
 	//input format for compressing, output format for decompression. Also the bitdepth.
-	unsigned int format = 0;
-
-	bool          multithreading = false;
-	unsigned int  compressed_size = 0;
+	uint32_t format = 0;
+	uint32_t compressed_size = 0;
 
 	std::unique_ptr<CompressClass> cObj;
-	std::unique_ptr<ThreadData[]> threads;
+	std::unique_ptr<ThreadData[]>  threads;
+	bool multithreading = false;
 };
 
 } // Lagarith

@@ -1,5 +1,5 @@
 #pragma once
 
-int          deRLE(const unsigned char* in, unsigned char* out, int length, int level);
-unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
-                        unsigned char* const out3, unsigned int length, int* level);
+int          deRLE(const uint8_t* in, uint8_t* out, int length, int level);
+uint32_t TestAndRLE(uint8_t* const in, uint8_t* const out1,
+                        uint8_t* const out3, uint32_t length, int* level);

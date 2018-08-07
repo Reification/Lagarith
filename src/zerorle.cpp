@@ -15,14 +15,12 @@
 //	along with this program; if not, write to the Free Software
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
-#include <stdlib.h>
-#include <memory.h>
+#include "lagarith_internal.h"
+#include "fibonacci.h"
 #include <tmmintrin.h>
 
-#include "fibonacci.h"
-
-static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
-                     unsigned char** const out3, const unsigned int length);
+static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
+                     uint8_t** const out3, const uint32_t length);
 
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
@@ -50,7 +48,7 @@ extern const unsigned int* dist_rest;
 
 // this table is used in preforming RLE; it is used to look up how
 // many leading zeros or non-zeros were found in an eight-byte block
-static const unsigned int countlookup[] = {
+static const uint32_t countlookup[] = {
   8, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 5,
   0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 6, 0,
   1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 5, 0, 1,
@@ -60,7 +58,7 @@ static const unsigned int countlookup[] = {
   1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 5, 0, 1, 0, 2, 0, 1,
   0, 3, 0, 1, 0, 2, 0, 1, 0, 4, 0, 1, 0, 2, 0, 1, 0, 3, 0, 1, 0, 2, 0, 1, 0, 8};
 
-static const unsigned int lvl3_lookup[] = {
+static const uint32_t lvl3_lookup[] = {
   8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 1, 0, 8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 2, 2, 1, 0,
   8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 1, 0, 8, 8, 8, 8, 8, 8, 8, 0, 3, 3, 3, 3, 2, 2, 1, 0,
   8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 8, 8, 1, 0, 8, 8, 8, 8, 8, 8, 8, 0, 8, 8, 8, 8, 2, 2, 1, 0,
@@ -70,12 +68,13 @@ static const unsigned int lvl3_lookup[] = {
   6, 6, 6, 6, 6, 6, 6, 0, 6, 6, 6, 6, 6, 6, 1, 0, 6, 6, 6, 6, 6, 6, 6, 0, 6, 6, 6, 6, 2, 2, 1, 0,
   5, 5, 5, 5, 5, 5, 5, 0, 5, 5, 5, 5, 5, 5, 1, 0, 4, 4, 4, 4, 4, 4, 4, 0, 3, 3, 3, 3, 2, 2, 1, 0};
 
+#if 0 // not used - long run encoding appears to be implemented in SSE2 variants - kept for reference
 // This function encodes zero runs longer than 256 bytes;
 // This is rare and takes a variable amount of bytes per level
-static void Encode_Long_Run(unsigned char** l1, unsigned char** l3, unsigned int count) {
-	unsigned char* lvl1 = l1[0];
-	unsigned char* lvl3 = l3[0];
-	unsigned int   x    = count;
+static void Encode_Long_Run(uint8_t** l1, uint8_t** l3, uint32_t count) {
+	uint8_t* lvl1 = l1[0];
+	uint8_t* lvl3 = l3[0];
+	uint32_t   x    = count;
 	while (x > 256) {
 		lvl1[0] = 0;
 		lvl1[1] = dist_match_max;
@@ -83,7 +82,7 @@ static void Encode_Long_Run(unsigned char** l1, unsigned char** l3, unsigned int
 		lvl1 += 2;
 	}
 	lvl1[0] = 0;
-	lvl1[1] = (unsigned char)dist_match[x + 1];
+	lvl1[1] = (uint8_t)dist_match[x + 1];
 	lvl1 += 2;
 
 	while (count > 258) {
@@ -105,12 +104,13 @@ static void Encode_Long_Run(unsigned char** l1, unsigned char** l3, unsigned int
 		lvl3[0] = 0;
 		lvl3[1] = 0;
 		lvl3[2] = 0;
-		lvl3[3] = (unsigned char)dist_match[count - 1];
+		lvl3[3] = (uint8_t)dist_match[count - 1];
 		lvl3 += 4;
 	}
 	l1[0] = lvl1;
 	l3[0] = lvl3;
 }
+#endif // 0
 
 /*
 This function takes the input data and performs RLE on runs of zeros.
@@ -125,11 +125,11 @@ first is zero, in this case the function will return -1, and only
 the first byte needs to be saved.
 */
 
-unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
-                        unsigned char* const out3, unsigned int length,
+uint32_t TestAndRLE(uint8_t* const in, uint8_t* const out1,
+                        uint8_t* const out3, uint32_t length,
                         int* level) {
-	unsigned char* lvl1 = out1;
-	unsigned char* lvl3 = out3;
+	uint8_t* lvl1 = out1;
+	uint8_t* lvl3 = out3;
 
 	// end marker values to prevent overrunning
 	in[length]     = 255;
@@ -137,12 +137,12 @@ unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
 	in[length + 2] = 0;
 	in[length + 3] = 0;
 
-	unsigned int a = 0;
+	uint32_t a = 0;
 
 	TestAndRLE_SSE2(in, &lvl1, &lvl3, length);
 
-	unsigned int len1 = (int)(lvl1 - out1);
-	unsigned int len3 = (int)(lvl3 - out3);
+	uint32_t len1 = (int)(lvl1 - out1);
+	uint32_t len3 = (int)(lvl3 - out3);
 
 	// check if the data was one long run of zeros
 	if (len1 <= (length / 256) * 2 + 3) {
@@ -185,25 +185,25 @@ unsigned int TestAndRLE(unsigned char* const in, unsigned char* const out1,
 	return len3;
 }
 
-static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
-                     unsigned char** const out3, unsigned int length) {
+static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1,
+                     uint8_t** const out3, uint32_t length) {
 	//23
 	//20
 	//11
 	//10.3
-	unsigned int   a    = 0;
-	unsigned char* lvl3 = *out3;
+	uint32_t   a    = 0;
+	uint8_t* lvl3 = *out3;
 
 	const __m128i zero = _mm_setr_epi32(0, 0, -1, -1);
 	// Perform RLE on the data using runs of length 1 and 3 using SSE
 	while (true) {
-		unsigned int step;
+		uint32_t step;
 		do {
 			// copy bytes until a zero run is found
 			__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
 			_mm_storel_epi64((__m128i*)lvl3, s);
 			s                  = _mm_cmpeq_epi8(s, zero);
-			unsigned int index = _mm_movemask_epi8(s);
+			uint32_t index = _mm_movemask_epi8(s);
 			step               = lvl3_lookup[index];
 			lvl3 += step;
 			a += step;
@@ -212,7 +212,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 			break;
 		}
 
-		unsigned int count = 3;
+		uint32_t count = 3;
 		a += 3;
 		do {
 			// count the number of zeros in the current run
@@ -228,7 +228,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 			lvl3[0] = 0;
 			lvl3[1] = 0;
 			lvl3[2] = 0;
-			lvl3[3] = (unsigned char)dist_match[count - 1];
+			lvl3[3] = (uint8_t)dist_match[count - 1];
 			lvl3 += 4;
 		} else {
 			// encode the run of zeros
@@ -244,7 +244,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 			lvl3[0] = 0;
 			lvl3[1] = 0;
 			lvl3[2] = 0;
-			lvl3[3] = (unsigned char)dist_match[count - 1];
+			lvl3[3] = (uint8_t)dist_match[count - 1];
 			lvl3 += (count >= 3) ? 4 : count;
 		}
 	}
@@ -254,8 +254,8 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 
 	// if level 3 RLE is > 32% of no RLE (length), then level 1 RLE will not
 	// be used and does not need to be calculated.
-	unsigned int   len  = (int)(lvl3 - *out3);
-	unsigned char* lvl1 = *out1;
+	uint32_t   len  = (int)(lvl3 - *out3);
+	uint8_t* lvl1 = *out1;
 	if (len * 100 / length <= 32) {
 		a = 0;
 		if (in[0] == 0) {
@@ -263,7 +263,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 		}
 		while (true) {
 			{
-				unsigned int step;
+				uint32_t step;
 				do {
 					// copy non-zero bytes until a zero is found
 					__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
@@ -279,9 +279,9 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 				break;
 			}
 		RLE_lvl1_0_start_SSE2:
-			unsigned int count = 0;
+			uint32_t count = 0;
 			{
-				unsigned int step;
+				uint32_t step;
 				do {
 					// count the number of zeros in the current run
 					__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
@@ -301,7 +301,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 				lvl1 += 2;
 			}
 			lvl1[0] = 0;
-			lvl1[1] = (unsigned char)dist_match[count + 1];
+			lvl1[1] = (uint8_t)dist_match[count + 1];
 			lvl1 += 2;
 		}
 		if (a > length) {
@@ -322,7 +322,7 @@ static void TestAndRLE_SSE2(unsigned char* const in, unsigned char** const out1,
 // 0 bytes to output. This routine is only used in the rare occurence
 // where RLE compression is better than header + range coding
 
-int deRLE(const unsigned char* in, unsigned char* out, int length, int level) {
+int deRLE(const uint8_t* in, uint8_t* out, int length, int level) {
 	int a = 0;
 	int b = 0;
 	memset(out, 0, length);
