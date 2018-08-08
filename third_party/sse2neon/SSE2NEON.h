@@ -1686,9 +1686,8 @@ FORCE_INLINE void _mm_clflush(void const*p)
 
 #if REIFICATION_SSE2NEON_EXTENSIONS
 FORCE_INLINE __m128i _mm_loadl_epi64(const __m128i* a) {
-	const uint64x1_t lo = vget_low_u64(vreinterpretq_u64_m128i(*a));
-	const uint64x1_t hi = vget_high_u64(vreinterpretq_u64_m128i(*a));
-	return vreinterpretq_m128i_u64(vcombine_u64(lo, hi));
+	const int64_t __attribute__((aligned(16))) data[2] = { ((const int64_t*)a)[0], 0ll };
+	return vreinterpretq_m128i_s64(vld1q_s64(data));
 }
 
 FORCE_INLINE __m128i _mm_setr_epi8(int8_t i15, int8_t i14, int8_t i13, int8_t i12, int8_t i11,
@@ -1738,9 +1737,10 @@ FORCE_INLINE __m128i _mm_shuffle_epi8(__m128i v, __m128i s) {
 FORCE_INLINE __m128i _mm_shufflelo_epi16(__m128i v, int s) {
 	const int16_t* pv = (const int16_t*)&v;
 	const int16_t __attribute__((aligned(16)))
-	data[16] = {pv[s & 0x3], pv[(s >> 2) & 0x3], pv[(s >> 4) & 0x3], pv[(s >> 6) & 0x3],
+	data[16] = { pv[s & 0x3], pv[(s >> 2) & 0x3], pv[(s >> 4) & 0x3], pv[(s >> 6) & 0x3]
 	            // include high bytes from input or should these be zero?
-	            pv[4], pv[5], pv[6], pv[7]};
+	            //, pv[4], pv[5], pv[6], pv[7]
+							};
 	return vreinterpretq_m128i_s16(vld1q_s16(data));
 }
 #endif // REIFICATION_SSE2NEON_EXTENSIONS

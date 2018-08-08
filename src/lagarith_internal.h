@@ -45,8 +45,7 @@
 #	define REIFICATION_SSE2NEON_EXTENSIONS 1
 #	include "sse2neon/SSE2NEON.h"
 
-static inline __attribute__((__always_inline__, __nodebug__)) uint64_t __emulu(uint32_t a,
-                                                                               uint32_t b) {
+static inline __attribute__((__always_inline__)) uint64_t __emulu(uint32_t a, uint32_t b) {
 	return (uint64_t)a * (uint64_t)b;
 }
 
