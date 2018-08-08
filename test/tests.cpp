@@ -11,18 +11,23 @@
 
 #if !defined(_WINDOWS)
 #	define sprintf_s sprintf
+inline int fopen_s(FILE** pfp, const char* path, const char* mode) {
+	*pfp = fopen(path, mode);
+	return *pfp ? 0 : -1;
+}
 #endif
 
-#define DUMP_INTERMED_DATA 0
+#define DUMP_INTERMED_DATA 1
+#define TEST_RGB24_FORMAT 0
 
 //#undef min
 namespace {
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
-	uint32_t      m_width    = 0;
-	uint32_t      m_height   = 0;
-	uint32_t      m_channels = 0;
-	uint32_t      m_alloced  = 0;
+	uint32_t m_width    = 0;
+	uint32_t m_height   = 0;
+	uint32_t m_channels = 0;
+	uint32_t m_alloced  = 0;
 
 	Raster() = default;
 	~Raster() { Free(); }
@@ -43,7 +48,8 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits, (int)(m_width * m_channels))) {
+		if (stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits,
+		                   (int)(m_width * m_channels))) {
 			return true;
 		}
 
@@ -80,10 +86,11 @@ struct Raster {
 };
 
 struct RasterSequence {
-	bool Load(uint32_t channels, const char* format, uint32_t first, uint32_t last, uint32_t step = 1) {
-		char imageName[128];
-		uint32_t  j   = first;
-		uint32_t  end = last + step;
+	bool Load(uint32_t channels, const char* format, uint32_t first, uint32_t last,
+	          uint32_t step = 1) {
+		char     imageName[128];
+		uint32_t j   = first;
+		uint32_t end = last + step;
 
 		Free();
 
@@ -146,9 +153,9 @@ struct RasterSequence {
 		m_frameCount = 0;
 	}
 
-	uint32_t      GetWidth() const { return m_frames[0].m_width; }
-	uint32_t      GetHeight() const { return m_frames[0].m_height; }
-	uint32_t      GetChannels() const { return m_frames[0].m_channels; }
+	uint32_t GetWidth() const { return m_frames[0].m_width; }
+	uint32_t GetHeight() const { return m_frames[0].m_height; }
+	uint32_t GetChannels() const { return m_frames[0].m_channels; }
 	stbi_uc* GetBits(uint32_t frameIdx) const {
 		return frameIdx < m_frameCount ? m_frames[frameIdx].m_pBits : nullptr;
 	}
@@ -159,13 +166,14 @@ struct RasterSequence {
 
 private:
 	uint32_t m_frameCount = 0;
-	Raster       m_frames[5];
+	Raster   m_frames[5];
 };
 
 static bool testEncodeDecode(uint32_t channelCount) {
 	RasterSequence srcFrames;
 	RasterSequence decompressedFrames;
-	bool           result = false;
+	const char*    fmtName = (channelCount == 3) ? "rgb24" : "rgb32";
+	bool           result  = false;
 
 	if (!srcFrames.Load(channelCount, "test_data/frame_%02d.png", 0, 4)) {
 		return false;
@@ -173,11 +181,11 @@ static bool testEncodeDecode(uint32_t channelCount) {
 
 	decompressedFrames.Alloc(srcFrames);
 
-	const uint32_t   inputFrameSize          = srcFrames.GetFrameSizeBytes();
-	uint32_t         compressedFrameSizes[5] = {};
+	const uint32_t       inputFrameSize          = srcFrames.GetFrameSizeBytes();
+	uint32_t             compressedFrameSizes[5] = {};
 	void*                compressedFrames[5]     = {};
 	std::vector<uint8_t> compressedBuf;
-	uint32_t         totalCompressedSize = 0;
+	uint32_t             totalCompressedSize = 0;
 
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
@@ -188,7 +196,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		pCode->SetMultithreaded(true);
 
 		result = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
-		                           srcFrames.GetChannels() * 8);
+		                              srcFrames.GetChannels() * 8);
 
 		if (!result) {
 			fprintf(stderr, "CompressBegin failed.\n");
@@ -197,7 +205,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 
 		const void* pSrcBits = nullptr;
 		uint8_t*    pDstBits = compressedBuf.data();
-		uint32_t         i        = 0;
+		uint32_t    i        = 0;
 
 		for (; !!(pSrcBits = srcFrames.GetBits(i)); i++) {
 			result = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
@@ -227,7 +235,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		pCode->SetMultithreaded(true);
 
 		result = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
-		                             srcFrames.GetChannels() * 8);
+		                                srcFrames.GetChannels() * 8);
 
 		if (!result) {
 			fprintf(stderr, "DecompressBegin failed.\n");
@@ -235,7 +243,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		}
 
 		uint8_t* pDstBits = nullptr;
-		uint32_t      i        = 0;
+		uint32_t i        = 0;
 
 		for (; !!(pDstBits = decompressedFrames.GetBits(i)); i++) {
 			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
@@ -250,6 +258,25 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		pCode->DecompressEnd();
 	}
 
+#if DUMP_INTERMED_DATA
+	{
+		char path[128];
+		sprintf_s(path, "test_data/decompressed_%s_%%02d.png", fmtName);
+
+		decompressedFrames.Save(path);
+
+		sprintf_s(path, "test_data/compressed_%dx%dx%d_%d.lags", srcFrames.GetWidth(),
+		          srcFrames.GetHeight(), channelCount, srcFrames.GetFrameCount());
+		FILE* fp = nullptr;
+		fopen_s(&fp, path, "wb");
+		if (fp) {
+			fwrite(compressedBuf.data(), totalCompressedSize, 1, fp);
+			fclose(fp);
+			fp = nullptr;
+		}
+	}
+#endif
+
 	// round trip verification
 	{
 		uint32_t mismatches = 0;
@@ -258,16 +285,37 @@ static bool testEncodeDecode(uint32_t channelCount) {
 			const stbi_uc* pOrigBits      = srcFrames.GetBits(i);
 			const stbi_uc* pRoundTripBits = decompressedFrames.GetBits(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
-				fprintf(stderr, "Frame %d failed lossless reconstruction.\n", i);
 				char imageName[128];
-				sprintf_s(imageName, "test_data/mismatched_frame_%02d.png", i);
-				Raster diff;
+				sprintf_s(imageName, "test_data/mismatched_%s_frame_%02d.png", fmtName, i);
+				const uint32_t framePixCount = srcFrames.GetWidth() * srcFrames.GetHeight();
+				Raster         diff;
 				diff.Alloc(srcFrames.GetWidth(), srcFrames.GetHeight(), srcFrames.GetChannels());
-				stbi_uc* pDiff = diff.m_pBits;
-				for (uint32_t p = 0; p < inputFrameSize; p++) {
-					pDiff[p] = (stbi_uc)std::min((int)0xff, std::abs(((int)pRoundTripBits[p] - (int)pOrigBits[p])));
+				stbi_uc* pDiff         = diff.m_pBits;
+				uint32_t pixMismatches = 0;
+				for (uint32_t p = 0; p < inputFrameSize; p += channelCount) {
+					const int32_t  origR = pOrigBits[p + 0];
+					const int32_t  rtR   = pRoundTripBits[p + 0];
+					const uint32_t diffR = std::abs(rtR - origR);
+					const int32_t  origG = pOrigBits[p + 1];
+					const int32_t  rtG   = pRoundTripBits[p + 1];
+					const uint32_t diffG = std::abs(rtG - origG);
+					const int32_t  origB = pOrigBits[p + 2];
+					const int32_t  rtB   = pRoundTripBits[p + 2];
+					const uint32_t diffB = std::abs(rtB - origB);
+
+					pDiff[p + 0] = (stbi_uc)std::min((uint32_t)0xff, diffR);
+					pDiff[p + 1] = (stbi_uc)std::min((uint32_t)0xff, diffG);
+					pDiff[p + 2] = (stbi_uc)std::min((uint32_t)0xff, diffB);
+					if (channelCount == 4) {
+						pDiff[p + 3] = 0xff;
+					}
+
+					pixMismatches += (pDiff[p + 0] || pDiff[p + 1] || pDiff[p + 2]);
 				}
 				diff.Save(imageName);
+				fprintf(stderr, "%s frame %d failed lossless reconstruction - %d/%d mismatches (%g%%).\n",
+				        fmtName, i, pixMismatches, framePixCount,
+				        (float)pixMismatches / (float)framePixCount * 100.0f);
 				mismatches++;
 			}
 		}
@@ -275,26 +323,12 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		if (mismatches) {
 			return false;
 		}
-
-#if DUMP_INTERMED_DATA
-		decompressedFrames.Save("test_data/decompressed_frame_%02d.png");
-
-		FILE* fp = nullptr;
-		fopen_s(&fp, "compressed_frames.lags", "wb");
-		if (fp) {
-			fwrite(compressedBuf.data(), totalCompressedSize, 1, fp);
-			fclose(fp);
-			fp = nullptr;
-		}
-#endif
 	}
 
 	return true;
 }
 
-#define TEST_RGB_FORMAT 0
-
-#if TEST_RGB_FORMAT
+#if TEST_RGB24_FORMAT
 bool testEncodeDecodeRGB() {
 	if (testEncodeDecode(3)) {
 		printf("testEncodeDecodeRGB passed.\n");
@@ -303,7 +337,7 @@ bool testEncodeDecodeRGB() {
 
 	return false;
 }
-#endif // TEST_RGB_FORMAT
+#endif // TEST_RGB24_FORMAT
 
 bool testEncodeDecodeRGBX() {
 	if (testEncodeDecode(4)) {
@@ -317,7 +351,7 @@ bool testEncodeDecodeRGBX() {
 
 void Lagarith::registerTests(std::vector<TestFunction>& tests) {
 	tests.push_back(&testEncodeDecodeRGBX);
-#if TEST_RGB_FORMAT
+#if TEST_RGB24_FORMAT
 	tests.push_back(&testEncodeDecodeRGB);
-#endif // TEST_RGB_FORMAT
+#endif // TEST_RGB24_FORMAT
 }
