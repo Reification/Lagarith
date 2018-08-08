@@ -10,7 +10,7 @@
 #define STBI_NO_PIC
 
 // disable windows fopen security warning in stb headers.
-#if defined(WIN32)
+#if defined(_WINDOWS)
 #	define _CRT_SECURE_NO_WARNINGS 1
 #endif
 

@@ -17,7 +17,6 @@
 
 #include "lagarith_internal.h"
 #include "fibonacci.h"
-#include <tmmintrin.h>
 
 static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** const out3,
                             const uint32_t length);
@@ -25,7 +24,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** c
 // this lookup table is used for encoding run lengths so that
 // the run byte distribution should roughly match the data
 // distribution, improving compression.
-static const char dist_match[] = {
+static const int8_t dist_match[] = {
   0,   0,    0,   -1,   1,   -2,   2,   -3,   3,   -4,   4,   -5,   5,   -6,   6,   -7,   7,   -8,
   8,   -9,   9,   -10,  10,  -11,  11,  -12,  12,  -13,  13,  -14,  14,  -15,  15,  -16,  16,  -17,
   17,  -18,  18,  -19,  19,  -20,  20,  -21,  21,  -22,  22,  -23,  23,  -24,  24,  -25,  25,  -26,

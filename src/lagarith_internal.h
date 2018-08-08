@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdlib.h>
-#include <malloc.h>
 #include <memory.h>
 #include <cassert>
 #include <cinttypes>
@@ -11,14 +10,20 @@
 #	if !defined(_WIN64)
 #		error "Only x64 windows config supported."
 #	endif
+#	define LAGARITH_WINDOWS
+#	define LAGARITH_X64
 #elif defined(__ANDROID__)
 #	if !defined(__aarch64__)
 #		error "Only x64 android config supported."
 #	endif
+#	define LAGARITH_ANDROID
+#	define LAGARITH_ARM64
 #elif defined(__OSX__)
 #	if !defined(__x86_64__)
 #		error "Only x64 OSX config supported."
 #	endif
+#	define LAGARITH_OSX
+#	define LAGARITH_X64
 #else
 #	error "Unsupported OS"
 #endif
@@ -29,26 +34,57 @@
 #	include <windows.h>
 #else
 #	define LAGARITH_MULTITHREAD_SUPPORT 0
+#	include <unistd.h>
 #endif
 
-inline void* lag_aligned_malloc(void* ptr, uint32_t size, uint32_t align, const char* str) {
-	(void)str;
-	if (ptr) {
-		try {
-			_aligned_free(ptr);
-		} catch (...) {
-		}
-	}
-	return _aligned_malloc(size, align);
+#if defined(LAGARITH_X64)
+#	include <tmmintrin.h>
+#	include <intrin.h>
+#elif defined(LAGARITH_ARM64)
+#	include "sse2neon/SSE2NEON.h"
+
+#	if !defined(__INTELLISENSE__)
+#	define FORCE_INLINE static inline __attribute__((always_inline))
+#else
+# define FORCE_INLINE
+#endif
+FORCE_INLINE __m128i _mm_loadl_epi64(const __m128i* a) {
+	const uint64x1_t lo = vget_low_u64(vreinterpretq_u64_m128i(*a));
+	const uint64x1_t hi = vget_high_u64(vreinterpretq_u64_m128i(*a));
+	return vreinterpretq_m128i_u64(vcombine_u64(lo, hi));
 }
+#undef FORCE_INLINE
+
+#endif
 
 template <typename T> inline void lag_aligned_free(T*& ptr, const char* str) {
-	(void)str;
-	try {
-		_aligned_free((void*)ptr);
-	} catch (...) {
+	assert(!(((uintptr_t)ptr) & 0xf) && "not an aligned allocation!");
+
+	if (ptr) {
+		delete[] reinterpret_cast<__m128i*>((void*)ptr);
+		ptr = nullptr;
 	}
-	ptr = nullptr;
+}
+
+inline void* lag_aligned_malloc(void* ptr, uint32_t size, uint32_t align, const char* str) {
+	assert(align <= 16 && !(align & (align - 1)) && "invalid alignment");
+
+	(void)str;
+	if (ptr) {
+		lag_aligned_free(ptr, str);
+	}
+
+	if (align > 16) {
+		return nullptr;
+	}
+	align = 16;
+
+	const uint32_t numInt128s = (size >> 4) + !!(size & 0xf);
+
+	ptr = new __m128i[numInt128s];
+	assert(!(((uintptr_t)ptr) & 0xf) && "not an aligned allocation!");
+
+	return ptr;
 }
 
 // y must be 2^n

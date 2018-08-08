@@ -1,10 +1,6 @@
 #include "tests.h"
 #include "lagarith.h"
 
-#include <stdlib.h>
-#include <memory>
-#include <vector>
-
 // only needed for handling test data - not used for actual codec.
 #include "stb/stb.h"
 #include "stb/stb_image.h"
@@ -12,9 +8,7 @@
 
 #define DUMP_INTERMED_DATA 0
 
-#undef min
-
-#include <algorithm>
+//#undef min
 
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;

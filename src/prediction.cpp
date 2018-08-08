@@ -16,10 +16,8 @@
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 //This file contains functions that perform and undo median predition that are used by both x86 and x64
-#define WIN32_LEAN_AND_MEAN
 #include "lagarith_internal.h"
 #include "prediction.h"
-#include <tmmintrin.h>
 
 // this effectively performs a bubble sort to select the median:
 // min(max(min(x,y),z),max(x,y))

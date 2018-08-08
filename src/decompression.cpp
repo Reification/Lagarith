@@ -38,8 +38,8 @@ bool Codec::DecompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel) {
 		buffer_size = align_round(width * 4, 8) * height + 2048;
 	}
 
-	buffer  = (uint8_t*)lag_aligned_malloc(buffer, buffer_size, 16, "buffer");
-	buffer2 = (uint8_t*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
+	buffer  = (uint8_t*)lag_aligned_malloc(buffer, buffer_size, 16, "Codec::buffer (decompress)");
+	buffer2 = (uint8_t*)lag_aligned_malloc(prev, buffer_size, 16, "Codec::prev (decompress)");
 
 	if (!buffer || !buffer2) {
 		return false;
@@ -63,8 +63,8 @@ void Codec::DecompressEnd() {
 			EndThreads();
 		}
 
-		lag_aligned_free(buffer, "buffer");
-		lag_aligned_free(buffer2, "buffer2");
+		lag_aligned_free(buffer, "Codec::buffer (decompress)");
+		lag_aligned_free(buffer2, "Codec::buffer2 (decompress)");
 		cObj->FreeCompressBuffers();
 	}
 	started = 0;

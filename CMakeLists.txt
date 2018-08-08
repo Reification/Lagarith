@@ -17,14 +17,18 @@ set(BUILD_TEST_AS_LIB FALSE)
 set(LIB_SRC_DIR "src")
 set(API_HDR_DIR "include")
 
+set(THIRD_PARTY_DIR "third_party")
+
 if(WIN32)
   add_definitions(-D_CRT_SECURE_NO_WARNINGS)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 elseif(ANDROID)
   set(BUILD_TEST_AS_LIBS TRUE)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
 elseif(APPLE)
-  #set(API_PLAT_HDR_DIR "darwin")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
 else()
   message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} NYI")
 endif()
@@ -36,7 +40,8 @@ file(GLOB API_HDR "${API_HDR_DIR}/*.h")
 
 include_directories(  BEFORE 
                       ${LIB_SRC_DIR} 
-                      ${API_HDR_DIR} )
+                      ${API_HDR_DIR} 
+											${THIRD_PARTY_DIR})
 
 add_library(${PROJECT_NAME} STATIC ${LIB_SRC} ${LIB_HDR} ${API_HDR})
 
@@ -44,7 +49,6 @@ source_group("API" FILES ${API_HDR})
 
 if(BUILD_TEST)
 	set(TEST_SRC_DIR "test")
-	set(THIRD_PARTY_DIR "third_party")
 	set(TEST_DATA_DIR "${TEST_SRC_DIR}/data")
 	set(TEST_NAME "${PROJECT_NAME}_test")
 	set(TEST_BIN_DIR "${CMAKE_BINARY_DIR}/test_data")
@@ -57,7 +61,6 @@ if(BUILD_TEST)
 		add_executable(${TEST_NAME} ${TEST_SRC})
 	endif()
 
-	target_include_directories(${TEST_NAME} PRIVATE ${THIRD_PARTY_DIR})
 	target_link_libraries(${TEST_NAME} ${PROJECT_NAME})
 	set_target_properties(${TEST_NAME} PROPERTIES FOLDER "Tests")
 

@@ -273,7 +273,7 @@ void CompressClass::Uncompact(const uint8_t* in, uint8_t* out, const uint32_t le
 bool CompressClass::InitCompressBuffers(const uint32_t length) {
 	// buffer must be large enough to hold all 3 RLE levels at their worst case
 	buffer =
-	  (uint8_t*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8, "Compress::temp");
+	  (uint8_t*)lag_aligned_malloc(buffer, length * 3 / 2 + length * 5 / 4 + 32, 8, "Compress::buffer");
 	if (!buffer) {
 		FreeCompressBuffers();
 		return false;

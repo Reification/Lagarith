@@ -16,8 +16,6 @@
 //	Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA  02111-1307, USA.
 
 #include "lagarith_internal.h"
-#include <intrin.h>
-
 #include "reciprocal_table.inl"
 
 #define TOP_VALUE 0x80000000

@@ -35,14 +35,14 @@ bool Codec::CompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerChannel) {
 	uint32_t buffer_size;
 	buffer_size = align_round(width, 16) * height * 4 + 1024;
 
-	buffer  = (uint8_t*)lag_aligned_malloc(buffer, buffer_size, 16, "buffer");
-	buffer2 = (uint8_t*)lag_aligned_malloc(buffer2, buffer_size, 16, "buffer2");
-	prev    = (uint8_t*)lag_aligned_malloc(prev, buffer_size, 16, "prev");
+	buffer  = (uint8_t*)lag_aligned_malloc(buffer, buffer_size, 16, "Codec::buffer (compress)");
+	buffer2 = (uint8_t*)lag_aligned_malloc(buffer2, buffer_size, 16, "Codec::buffer2 (compress)");
+	prev    = (uint8_t*)lag_aligned_malloc(prev, buffer_size, 16, "Codec::prev (compress)");
 
 	if (!buffer || !buffer2 || !prev) {
-		lag_aligned_free(buffer, "buffer");
-		lag_aligned_free(buffer2, "buffer2");
-		lag_aligned_free(prev, "prev");
+		lag_aligned_free(buffer, "Codec::buffer (compress)");
+		lag_aligned_free(buffer2, "Codec::buffer2 (compress)");
+		lag_aligned_free(prev, "Codec::prev (compress)");
 		return false;
 	}
 
@@ -71,9 +71,9 @@ void Codec::CompressEnd() {
 			EndThreads();
 		}
 
-		lag_aligned_free(buffer, "buffer");
-		lag_aligned_free(buffer2, "buffer2");
-		lag_aligned_free(prev, "prev");
+		lag_aligned_free(buffer, "Codec::buffer (compress)");
+		lag_aligned_free(buffer2, "Codec::buffer2 (compress)");
+		lag_aligned_free(prev, "Codec::prev (compress)");
 		cObj->FreeCompressBuffers();
 	}
 	started = 0;
