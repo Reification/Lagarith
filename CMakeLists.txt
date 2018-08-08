@@ -48,7 +48,7 @@ else()
 endif()
 
 file(GLOB LIB_SRC "${LIB_SRC_DIR}/*.cpp" "${LIB_SRC_DIR}/*.inl")
-file(GLOB LIB_HDR "${LIB_SRC_DIR}/*.h" "${LIB_SRC_DIR}/*.hpp")
+file(GLOB LIB_HDR "${LIB_SRC_DIR}/*.h" "${LIB_SRC_DIR}/*.hpp" "${THIRD_PARTY_DIR}/sse2neon/SSE2NEON.h")
 
 file(GLOB API_HDR "${API_HDR_DIR}/*.h")
 
@@ -60,6 +60,7 @@ include_directories(  BEFORE
 add_library(${PROJECT_NAME} STATIC ${LIB_SRC} ${LIB_HDR} ${API_HDR})
 
 source_group("API" FILES ${API_HDR})
+source_group("Android" FILES "${THIRD_PARTY_DIR}/sse2neon/SSE2NEON.h" "${LIB_SRC_DIR}/lag_sse2neon_ext.h")
 
 if(BUILD_TEST)
 	set(TEST_SRC_DIR "test")
@@ -67,7 +68,8 @@ if(BUILD_TEST)
 	set(TEST_NAME "${PROJECT_NAME}_test")
 	set(TEST_BIN_DIR "${CMAKE_BINARY_DIR}/bin/test_data")
 
-	file(GLOB TEST_SRC "${TEST_SRC_DIR}/*.c" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.hpp")
+	file(GLOB TEST_SRC	"${TEST_SRC_DIR}/*.c" "${TEST_SRC_DIR}/*.h" "${TEST_SRC_DIR}/*.cpp" "${TEST_SRC_DIR}/*.hpp"
+											"${THIRD_PARTY_DIR}/stb/stb.h" "${THIRD_PARTY_DIR}/stb/stb_image.h" "${THIRD_PARTY_DIR}/stb/stb_image_write.h")
 
 	if(BUILD_TEST_AS_LIB)
 		add_library(${TEST_NAME} STATIC ${TEST_SRC})

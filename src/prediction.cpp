@@ -206,19 +206,19 @@ static void Decorrelate_And_Split_RGB24_SSE2(const uint8_t* in, uint8_t* rdst, u
 		const uintptr_t wsteps = (width & 7) ? (width & (~7)) : width * height;
 
 		const __m128i shuffle =
-		  _mm_setr_epi8(0, 3, 6, 9, 2, 5, 8, 11, 1, 4, 7, 10, -1, -1, -1, -1); // bbbb rrrr gggg 0000
+		  lag_mm_setr_epi8(0, 3, 6, 9, 2, 5, 8, 11, 1, 4, 7, 10, -1, -1, -1, -1); // bbbb rrrr gggg 0000
 		for (uintptr_t y = 0; y < vsteps; y++) {
 			uintptr_t x;
 			for (x = 0; x < wsteps; x += 8) {
-				__m128i s0 = _mm_lddqu_si128((__m128i*)&in[y * stride + x * 3 + 0]);
-				__m128i s1 = _mm_loadl_epi64((__m128i*)&in[y * stride + x * 3 + 16]);
-				s1         = _mm_alignr_epi8(s1, s0, 12);
-				s0         = _mm_shuffle_epi8(s0, shuffle);
-				s1         = _mm_shuffle_epi8(s1, shuffle);
+				__m128i s0 = lag_mm_lddqu_si128((__m128i*)&in[y * stride + x * 3 + 0]);
+				__m128i s1 = lag_mm_loadl_epi64((__m128i*)&in[y * stride + x * 3 + 16]);
+				s1         = lag_mm_alignr_epi8(s1, s0, 12);
+				s0         = lag_mm_shuffle_epi8(s0, shuffle);
+				s1         = lag_mm_shuffle_epi8(s1, shuffle);
 
 				__m128i g  = _mm_unpackhi_epi32(s0, s1);
 				__m128i br = _mm_unpacklo_epi32(s0, s1);
-				g          = _mm_unpacklo_epi64(g, g);
+				g          = lag_mm_unpacklo_epi64(g, g);
 				br         = _mm_sub_epi8(br, g);
 
 
@@ -315,7 +315,7 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 	uintptr_t w = 0;
 	uintptr_t h = 0;
 
-	const __m128i mask = _mm_setr_epi8(0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0);
+	const __m128i mask = lag_mm_setr_epi8(0, -1, 0, 0, -1, 0, 0, -1, 0, 0, -1, 0, 0, 0, 0, 0);
 
 	// if there is no need for padding, treat it as one long row
 	const uintptr_t vsteps = (width & 3) ? height : 2;
@@ -335,9 +335,9 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 			__m128i src2 = _mm_unpackhi_epi8(src1, _mm_setzero_si128());
 			src1         = _mm_unpacklo_epi8(src1, _mm_setzero_si128());
 
-			__m128i y  = _mm_loadl_epi64((__m128i*)&output[a - stride]);
+			__m128i y  = lag_mm_loadl_epi64((__m128i*)&output[a - stride]);
 			__m128i ys = _mm_cvtsi32_si128(*(int*)&output[a - stride + 8]);
-			y          = _mm_unpacklo_epi64(y, ys);
+			y          = lag_mm_unpacklo_epi64(y, ys);
 
 
 			__m128i recorrilate = mask;
@@ -350,11 +350,11 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 			ys = y;
 			y  = _mm_slli_si128(y, 1);
 			y  = _mm_unpacklo_epi8(y, _mm_setzero_si128());
-			y  = _mm_shufflelo_epi16(y, (1 << 0) + (2 << 2) + (3 << 4) + (0 << 6));
+			y  = lag_mm_shufflelo_epi16(y, (1 << 0) + (2 << 2) + (3 << 4) + (0 << 6));
 			ys = _mm_srli_si128(ys, 5);
 			ys = _mm_unpacklo_epi8(ys, _mm_setzero_si128());
-			ys = _mm_shufflelo_epi16(ys, (1 << 0) + (2 << 2) + (3 << 4) + (0 << 6));
-			z  = _mm_unpacklo_epi64(z, y);
+			ys = lag_mm_shufflelo_epi16(ys, (1 << 0) + (2 << 2) + (3 << 4) + (0 << 6));
+			z  = lag_mm_unpacklo_epi64(z, y);
 
 			z = _mm_sub_epi16(_mm_add_epi16(x, y), z);
 
@@ -378,7 +378,7 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 			__m128i temp = x;
 			x            = _mm_srli_si128(x, 8);
 			z            = _mm_srli_si128(y, 8);
-			z            = _mm_unpacklo_epi64(z, ys);
+			z            = lag_mm_unpacklo_epi64(z, ys);
 			z            = _mm_sub_epi16(_mm_add_epi16(x, ys), z);
 			y            = ys;
 
@@ -402,10 +402,10 @@ static void Interleave_And_Restore_RGB24_SSE2(uint8_t* output, const uint8_t* rs
 			x = _mm_min_epi16(i, x); //min
 			x = _mm_add_epi8(x, src2);
 
-			temp = _mm_shufflelo_epi16(temp, (3 << 0) + (0 << 2) + (1 << 4) + (2 << 6));
+			temp = lag_mm_shufflelo_epi16(temp, (3 << 0) + (0 << 2) + (1 << 4) + (2 << 6));
 			temp = _mm_slli_si128(temp, 2);
 
-			x    = _mm_shufflelo_epi16(x, (3 << 0) + (0 << 2) + (1 << 4) + (2 << 6));
+			x    = lag_mm_shufflelo_epi16(x, (3 << 0) + (0 << 2) + (1 << 4) + (2 << 6));
 			temp = _mm_packus_epi16(temp, _mm_srli_si128(x, 2));
 
 			_mm_storel_epi64((__m128i*)&output[a], _mm_srli_si128(temp, 2));
@@ -550,7 +550,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			x = _mm_min_epi16(i, x); //min
 			x = _mm_add_epi8(x, src1);
 
-			temp1 = _mm_unpacklo_epi64(temp1, x);
+			temp1 = lag_mm_unpacklo_epi64(temp1, x);
 
 			z = y;
 
@@ -558,7 +558,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			i     = temp2;
 			y     = _mm_unpackhi_epi8(temp2, _mm_setzero_si128());
 			temp2 = _mm_srli_epi16(temp2, 8);
-			temp2 = _mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
+			temp2 = lag_mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
 			temp2 = _mm_shufflehi_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
 			temp2 = _mm_add_epi8(temp2, i);
 			_mm_store_si128((__m128i*)&output[a * 4 - stride], temp2); // must be %16
@@ -585,7 +585,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			x = _mm_min_epi16(i, x); //min
 			x = _mm_add_epi8(x, src2);
 
-			temp2 = _mm_unpacklo_epi64(temp2, x);
+			temp2 = lag_mm_unpacklo_epi64(temp2, x);
 			temp1 = _mm_packus_epi16(temp1, temp2);
 
 			_mm_store_si128((__m128i*)&output[a * 4], temp1);
@@ -630,7 +630,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			x = _mm_min_epi16(i, x); //min
 			x = _mm_add_epi8(x, src1);
 
-			temp1 = _mm_unpacklo_epi64(temp1, x);
+			temp1 = lag_mm_unpacklo_epi64(temp1, x);
 
 			z = y;
 
@@ -638,7 +638,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			i     = temp2;
 			y     = _mm_unpackhi_epi8(temp2, _mm_setzero_si128());
 			temp2 = _mm_srli_epi16(temp2, 8);
-			temp2 = _mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
+			temp2 = lag_mm_shufflelo_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
 			temp2 = _mm_shufflehi_epi16(temp2, (0 << 0) + (0 << 2) + (2 << 4) + (2 << 6));
 			temp2 = _mm_add_epi8(temp2, i);
 			_mm_store_si128((__m128i*)&output[a * 4 - stride], temp2); // must be %16
@@ -665,7 +665,7 @@ static void Interleave_And_Restore_RGB32_SSE2(uint8_t* output, const uint8_t* rs
 			x = _mm_min_epi16(i, x); //min
 			x = _mm_add_epi8(x, src2);
 
-			temp2 = _mm_unpacklo_epi64(temp2, x);
+			temp2 = lag_mm_unpacklo_epi64(temp2, x);
 			temp1 = _mm_packus_epi16(temp1, temp2);
 
 			_mm_storeu_si128((__m128i*)&output[a * 4], temp1); // only change from aligned version

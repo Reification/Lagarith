@@ -198,7 +198,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** c
 		uint32_t step;
 		do {
 			// copy bytes until a zero run is found
-			__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
+			__m128i s = lag_mm_loadl_epi64((__m128i*)&in[a]);
 			_mm_storel_epi64((__m128i*)lvl3, s);
 			s              = _mm_cmpeq_epi8(s, zero);
 			uint32_t index = _mm_movemask_epi8(s);
@@ -214,7 +214,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** c
 		a += 3;
 		do {
 			// count the number of zeros in the current run
-			__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
+			__m128i s = lag_mm_loadl_epi64((__m128i*)&in[a]);
 			s         = _mm_cmpeq_epi8(s, zero);
 			step      = _mm_movemask_epi8(s);
 			step      = countlookup[step + 1]; // step now equals the number of sequential zeros
@@ -264,7 +264,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** c
 				uint32_t step;
 				do {
 					// copy non-zero bytes until a zero is found
-					__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
+					__m128i s = lag_mm_loadl_epi64((__m128i*)&in[a]);
 					_mm_storel_epi64((__m128i*)lvl1, s);
 					s    = _mm_cmpeq_epi8(s, zero);
 					step = _mm_movemask_epi8(s) & 255;
@@ -282,7 +282,7 @@ static void TestAndRLE_SSE2(uint8_t* const in, uint8_t** const out1, uint8_t** c
 				uint32_t step;
 				do {
 					// count the number of zeros in the current run
-					__m128i s = _mm_loadl_epi64((__m128i*)&in[a]);
+					__m128i s = lag_mm_loadl_epi64((__m128i*)&in[a]);
 					s         = _mm_cmpeq_epi8(s, zero);
 					step      = _mm_movemask_epi8(s) & 255;
 					step      = countlookup[step + 1]; // step now equals the number of sequential zeros

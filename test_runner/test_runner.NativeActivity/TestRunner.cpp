@@ -10,7 +10,7 @@
 //#include <fstream>
 //#include <streambuf>
 
-#include "test/tests.h"
+#include "test/lagarith_testing.h"
 
 static std::string getDateTime() {
 	time_t     rawtime;
@@ -48,7 +48,7 @@ static void runTests(const std::string& packageName) {
 	printf("tests starting: %s\n", curTimeStr.c_str());
 
 	try {
-		Lagarith::runTests();
+		LagarithTesting::runTests();
 	} catch (...) {
 		fprintf(stderr, "Exception caught!\n");
 	}

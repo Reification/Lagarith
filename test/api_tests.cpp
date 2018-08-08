@@ -1,4 +1,5 @@
-#include "tests.h"
+#include "test_internal.h"
+
 #include "lagarith.h"
 
 // only needed for handling test data - not used for actual codec.
@@ -6,18 +7,10 @@
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 
-#include <string.h>
-#include <algorithm>
-
-#if !defined(_WINDOWS)
-#	define sprintf_s sprintf
-inline int fopen_s(FILE** pfp, const char* path, const char* mode) {
-	*pfp = fopen(path, mode);
-	return *pfp ? 0 : -1;
-}
-#endif
-
 #define DUMP_INTERMED_DATA 1
+
+// bug in original lagarith - an odd diagonal line of bad pixels appears - likely due to irregular image width.
+// does not occur in 32 bit RGB. fortunately we only need 32 bit RGB.
 #define TEST_RGB24_FORMAT 0
 
 //#undef min
@@ -329,29 +322,14 @@ static bool testEncodeDecode(uint32_t channelCount) {
 }
 
 #if TEST_RGB24_FORMAT
-bool testEncodeDecodeRGB() {
-	if (testEncodeDecode(3)) {
-		printf("testEncodeDecodeRGB passed.\n");
-		return true;
-	}
-
-	return false;
+DECLARE_TEST(testEncodeDecodeRGB) {
+	return testEncodeDecode(3);
 }
+REGISTER_TEST(testEncodeDecodeRGB);
+
 #endif // TEST_RGB24_FORMAT
 
-bool testEncodeDecodeRGBX() {
-	if (testEncodeDecode(4)) {
-		printf("testEncodeDecodeRGBX passed.\n");
-		return true;
-	}
-
-	return false;
+DECLARE_TEST(testEncodeDecodeRGBX) {
+	return testEncodeDecode(4);
 }
 } // anon namespace
-
-void Lagarith::registerTests(std::vector<TestFunction>& tests) {
-	tests.push_back(&testEncodeDecodeRGBX);
-#if TEST_RGB24_FORMAT
-	tests.push_back(&testEncodeDecodeRGB);
-#endif // TEST_RGB24_FORMAT
-}

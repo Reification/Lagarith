@@ -151,7 +151,7 @@ uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out, const uint32_t l
 			rb += rb;                                                                                    \
 			shifter += 2;                                                                                \
 		}                                                                                              \
-		int tmp = (int)(__emulu(low, reciprocal_table[s]) >> 32);                                      \
+		int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);                                      \
 		tmp -= rb;                                                                                     \
 		if (tmp < 0)                                                                                   \
 			tmp = 0;                                                                                     \
@@ -315,7 +315,7 @@ void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out, const uint
 							shifter += 2;
 						}
 						// Perform a 64 bit reciprocal multiply, the top 32 bits are the desired result
-						int tmp = (int)(__emulu(low, reciprocal_table[s]) >> 32);
+						int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);
 						tmp -= rb;
 
 						// rounding errors will sometimes cause tmp to be < range_bottom,

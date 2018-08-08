@@ -1,14 +1,6 @@
-#include "tests.h"
-#include <string.h>
-
-#if defined(_WINDOWS)
-#	include <direct.h>
-#	define PATH_SEP '\\'
-#	define chdir _chdir
-#else
-#	include <unistd.h>
-#	define PATH_SEP '/'
-#endif
+#include "lagarith_testing.h"
+#include "test_internal.h"
+#include <vector>
 
 // set via cmake compiler flags when building test as library instead of executable.
 #if !defined(LAGARITH_TEST_IS_LIB)
@@ -20,22 +12,25 @@ int main(int argc, const char* argv[]) {
 		chdir(tpath);
 	}
 
-	const int numFailures = Lagarith::runTests();
+	const int numFailures = LagarithTesting::runTests();
 
 	return numFailures;
 }
 #endif // !LAGARITH_TEST_IS_LIB
 
-int Lagarith::runTests()
-{
+int LagarithTesting::runTests() {
 	int testsRun    = 0;
 	int testsPassed = 0;
 
-	std::vector<TestFunction> testFunctions;
-	registerTests(testFunctions);
-
-	for (const TestFunction& test : testFunctions) {
-		testsPassed += test();
+	for (const TestRegistrar::Test& test : TestRegistrar::GetTests()) {
+		printf("running %s\n", test.name.c_str());
+		bool result = test.function();
+		if (result) {
+			testsPassed++;
+			printf("%s passed.\n", test.name.c_str());
+		} else {
+			fprintf(stderr, "%s failed.\n", test.name.c_str());
+		}
 		testsRun++;
 	}
 
