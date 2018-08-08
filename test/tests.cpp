@@ -292,6 +292,9 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	return true;
 }
 
+#define TEST_RGB_FORMAT 0
+
+#if TEST_RGB_FORMAT
 bool testEncodeDecodeRGB() {
 	if (testEncodeDecode(3)) {
 		printf("testEncodeDecodeRGB passed.\n");
@@ -300,6 +303,7 @@ bool testEncodeDecodeRGB() {
 
 	return false;
 }
+#endif // TEST_RGB_FORMAT
 
 bool testEncodeDecodeRGBX() {
 	if (testEncodeDecode(4)) {
@@ -313,8 +317,7 @@ bool testEncodeDecodeRGBX() {
 
 void Lagarith::registerTests(std::vector<TestFunction>& tests) {
 	tests.push_back(&testEncodeDecodeRGBX);
-
-	//decompressing 24 bit images with non multiple of 4 line widths has bugs. - test fails with mismatches
-	//due to diagnonal artifact in images - see mismatched_frame_%02d.png output images following test run. 
-	//tests.push_back(&testEncodeDecodeRGB);
+#if TEST_RGB_FORMAT
+	tests.push_back(&testEncodeDecodeRGB);
+#endif // TEST_RGB_FORMAT
 }

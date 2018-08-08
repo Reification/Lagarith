@@ -50,23 +50,6 @@ if(NOT PACKAGING_DEPS)
   message(FATAL_ERROR "NativeActivity and dependency targets must append target names to global property ANDROID_PKG_DEPS")
 endif()
 
-#generate file with list of tests to load (libraries)
-#for pushing to device with test data
-if(TRUE)
-  set(ALL_TESTS_TEXT)
-  foreach(TEST_NAME ${PACKAGING_DEPS})
-    if(("${TEST_NAME}" MATCHES "Test") AND (NOT "${TEST_NAME}" MATCHES "NativeActivity"))
-      set(ALL_TESTS_TEXT "${ALL_TESTS_TEXT}${TEST_NAME}\n")
-    endif()
-  endforeach(TEST_NAME)
-
-  file(WRITE ${CMAKE_BINARY_DIR}/bin/all_tests.txt ${ALL_TESTS_TEXT})
-  if(NOT EXISTS ${CMAKE_BINARY_DIR}/bin/run_tests.txt)
-    file(WRITE ${CMAKE_BINARY_DIR}/bin/run_tests.txt ${ALL_TESTS_TEXT})
-  endif()
-  unset(ALL_TESTS_TEXT)
-endif()
-
 #*************** manifest setup ******************************
 file(GLOB ACTIVITY_CLASS RELATIVE "${CMAKE_CURRENT_SOURCE_DIR}" "*Activity.java.in")
 if(ACTIVITY_CLASS)
