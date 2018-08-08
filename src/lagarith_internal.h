@@ -42,25 +42,15 @@
 #	include <tmmintrin.h>
 #	include <intrin.h>
 #elif defined(LAGARITH_ARM64)
+#	define REIFICATION_SSE2NEON_EXTENSIONS 1
 #	include "sse2neon/SSE2NEON.h"
 
-#	if !defined(__INTELLISENSE__)
-#	define FORCE_INLINE static inline __attribute__((always_inline))
-#else
-# define FORCE_INLINE
-#endif
-FORCE_INLINE __m128i _mm_loadl_epi64(const __m128i* a) {
-	const uint64x1_t lo = vget_low_u64(vreinterpretq_u64_m128i(*a));
-	const uint64x1_t hi = vget_high_u64(vreinterpretq_u64_m128i(*a));
-	return vreinterpretq_m128i_u64(vcombine_u64(lo, hi));
-}
-FORCE_INLINE uint64_t __emulu( uint32_t a, uint32_t b )
-{
+static inline __attribute__((__always_inline__, __nodebug__)) uint64_t __emulu(uint32_t a,
+                                                                               uint32_t b) {
 	return (uint64_t)a * (uint64_t)b;
 }
-#undef FORCE_INLINE
 
-#endif
+#endif // LAGARITH_ARM64
 
 template <typename T> inline void lag_aligned_free(T*& ptr, const char* str) {
 	assert(!(((uintptr_t)ptr) & 0xf) && "not an aligned allocation!");
