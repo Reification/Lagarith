@@ -35,6 +35,7 @@
 #else
 #	define LAGARITH_MULTITHREAD_SUPPORT 0
 #	include <unistd.h>
+#	define __assume(A)
 #endif
 
 #if defined(LAGARITH_X64)
@@ -52,6 +53,10 @@ FORCE_INLINE __m128i _mm_loadl_epi64(const __m128i* a) {
 	const uint64x1_t lo = vget_low_u64(vreinterpretq_u64_m128i(*a));
 	const uint64x1_t hi = vget_high_u64(vreinterpretq_u64_m128i(*a));
 	return vreinterpretq_m128i_u64(vcombine_u64(lo, hi));
+}
+FORCE_INLINE uint64_t __emulu( uint32_t a, uint32_t b )
+{
+	return (uint64_t)a * (uint64_t)b;
 }
 #undef FORCE_INLINE
 
