@@ -40,19 +40,21 @@ static void runTests(const std::string& packageName) {
 
 	chdir(testWorkingDir.c_str());
 
-	remove(testErrLog);
-	remove(testOutLog);
-
-	freopen(testOutLog, "a", stdout);
-	freopen(testErrLog, "a", stderr);
+	freopen(testOutLog, "w", stdout);
+	freopen(testErrLog, "w", stderr);
 
 	std::string curTimeStr = getDateTime();
+	printf("running tests from %s\n", testWorkingDir.c_str());
 	printf("tests starting: %s\n", curTimeStr.c_str());
-	
-	Lagarith::runTests();
-	
+
+	try {
+		Lagarith::runTests();
+	} catch (...) {
+		fprintf(stderr, "Exception caught!\n");
+	}
+
 	fclose(stdout);
-	fclose(stderr);	
+	fclose(stderr);
 }
 
 bool LaunchTestRunner(int* pIsRunning, const char* pPackageName) {
@@ -62,10 +64,6 @@ bool LaunchTestRunner(int* pIsRunning, const char* pPackageName) {
 	static const std::string s_packageName(pPackageName);
 
 	using namespace std::chrono_literals;
-
-	// must match value in ReifyCommon/src/android/PlatformAndroid.cpp
-	const char* packageNameEnvar = "REIFY_PACKAGE_NAME";
-	setenv(packageNameEnvar, pPackageName, false);
 
 	if (s_testsRunning) {
 		LOGE("LaunchTestRunner: last test batch still running.");
