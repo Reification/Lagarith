@@ -1,0 +1,49 @@
+package @DOMAIN_SFX@.@DOMAIN_NAME@;
+//
+// even though you technically don't need a java activity and can just refer to NativeActivity
+// directly in the manifest some case always comes up where it is just easier to swim downstream
+// and do it in java instead of through JNI
+//
+
+public class UnitTestRunnerActivity extends android.app.NativeActivity {
+  private static final String TAG = "UnitTestRunnerActivity";
+
+  private static void loadSharedLibraryDependencies()
+  {
+    android.util.Log.i( TAG, "Performing static initialization.\n" );
+
+    try
+    {
+      //System.loadLibrary("whateverLibrary.so");
+      //android.util.Log.i( TAG, "whateverLibrary.so loaded.\n" );
+    }
+    catch ( UnsatisfiedLinkError e )
+    {
+      //android.util.Log.e( TAG, "FAILED loading whateverLibrary.so\n" );
+      //throw e;
+    }
+  }
+
+  static {
+    loadSharedLibraryDependencies();
+  }
+    
+  @Override
+  protected void onCreate(android.os.Bundle savedInstanceState)
+  {
+    // just caches a Context reference (android.app.NativeActivity descends from Context)
+    android.util.Log.i( TAG, "onCreate() called\n");
+    super.onCreate( savedInstanceState );
+  }
+
+  @Override
+  protected void onDestroy()
+  {
+    super.onDestroy();
+    android.util.Log.i( TAG, "onDestroy() called\n");
+    // yes, really. GTFA - this is the hammer for quitting an app.
+    //System.runFinalizersOnExit(true);
+    //System.exit(0);
+  }
+ }
+ 

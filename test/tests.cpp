@@ -6,10 +6,17 @@
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 
+#include <string.h>
+#include <algorithm>
+
+#if !defined(_WINDOWS)
+#	define sprintf_s sprintf
+#endif
+
 #define DUMP_INTERMED_DATA 0
 
 //#undef min
-
+namespace {
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
 	uint32_t      m_width    = 0;
@@ -160,7 +167,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	RasterSequence decompressedFrames;
 	bool           result = false;
 
-	if (!srcFrames.Load(channelCount, "frame_%02d.png", 0, 4)) {
+	if (!srcFrames.Load(channelCount, "test_data/frame_%02d.png", 0, 4)) {
 		return false;
 	}
 
@@ -253,7 +260,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
 				fprintf(stderr, "Frame %d failed lossless reconstruction.\n", i);
 				char imageName[128];
-				sprintf_s(imageName, "mismatched_frame_%02d.png", i);
+				sprintf_s(imageName, "test_data/mismatched_frame_%02d.png", i);
 				Raster diff;
 				diff.Alloc(srcFrames.GetWidth(), srcFrames.GetHeight(), srcFrames.GetChannels());
 				stbi_uc* pDiff = diff.m_pBits;
@@ -270,7 +277,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		}
 
 #if DUMP_INTERMED_DATA
-		decompressedFrames.Save("decompressed_frame_%02d.png");
+		decompressedFrames.Save("test_data/decompressed_frame_%02d.png");
 
 		FILE* fp = nullptr;
 		fopen_s(&fp, "compressed_frames.lags", "wb");
@@ -302,8 +309,9 @@ bool testEncodeDecodeRGBX() {
 
 	return false;
 }
+} // anon namespace
 
-void registerTests(std::vector<TestFunction>& tests) {
+void Lagarith::registerTests(std::vector<TestFunction>& tests) {
 	tests.push_back(&testEncodeDecodeRGBX);
 
 	//decompressing 24 bit images with non multiple of 4 line widths has bugs. - test fails with mismatches

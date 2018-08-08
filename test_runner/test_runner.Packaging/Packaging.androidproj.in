@@ -1,0 +1,58 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|ARM64">
+      <Configuration>Debug</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|ARM64">
+      <Configuration>Release</Configuration>
+      <Platform>ARM64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <RootNamespace>@ROOT_NAMESPACE@</RootNamespace>
+    <MinimumVisualStudioVersion>15.0</MinimumVisualStudioVersion>
+    <ProjectVersion>1.0</ProjectVersion>
+    <ProjectGuid>@ANDROIDPROJ_GUID@</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(AndroidTargetsPath)\Android.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <ConfigurationType>Application</ConfigurationType>
+    <AndroidAPILevel>android-@ANDROID_NATIVE_API_LEVEL@</AndroidAPILevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <ConfigurationType>Application</ConfigurationType>
+    <AndroidAPILevel>android-@ANDROID_NATIVE_API_LEVEL@</AndroidAPILevel>
+  </PropertyGroup>
+  <Import Project="$(AndroidTargetsPath)\Android.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
+  <PropertyGroup Label="UserMacros" />
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'">
+    <AntPackage>
+      <AndroidAppLibName>@NATIVE_ACTIVITY_LIB_NAME@</AndroidAppLibName>
+      <AntTarget>debug</AntTarget>
+      <ApplicationName>@PACKAGE_ID@</ApplicationName>
+    </AntPackage>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'">
+    <AntPackage>
+      <AndroidAppLibName>@NATIVE_ACTIVITY_LIB_NAME@</AndroidAppLibName>
+      <AntTarget>@RELEASE_ANT_TARGET@</AntTarget>
+      <ApplicationName>@PACKAGE_ID@</ApplicationName>
+    </AntPackage>
+  </ItemDefinitionGroup>
+  <ItemGroup>@EXTRA_LIBS@
+    <Content Include="@STRINGS_XML@" />
+    <AntBuildXml Include="@BUILD_XML@" />
+    <AndroidManifest Include="@MANIFEST_XML@" />
+    <AntProjectPropertiesFile Include="@PROJECT_PROPS@" />@JAVA_SOURCES@
+  </ItemGroup>
+@RES_CONTENT@
+@PROJECT_REFERENCES@
+  <Import Project="$(AndroidTargetsPath)\Android.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

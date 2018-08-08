@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Changes made to Package Name should also be reflected in the Debugging - Package Name property, in the Property Pages -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+        package="@PACKAGE_ID@"
+        android:versionCode="1"
+        android:versionName="1.0">
+
+  <!-- This is the platform API where NativeActivity was introduced. -->
+  <uses-sdk android:minSdkVersion="@ANDROID_NATIVE_API_LEVEL@" android:targetSdkVersion="@ANDROID_NATIVE_API_LEVEL@"/>
+
+  <uses-feature android:glEsVersion="@GLES_VERSION@"/>
+
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+  <uses-permission android:name="android.permission.INTERNET" />
+    
+<!--
+<uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+
+  <uses-feature android:name="android.hardware.wifi"/>
+  <uses-feature android:name="android.hardware.wifi.direct"/>
+  <uses-feature android:name="android.hardware.camera.any"/>
+-->
+
+  <application  android:label="@string/app_name" @APP_ICON_ATTR@
+                android:hasCode="@HAS_JAVA_CODE@">
+
+    <!-- Our activity is the built-in NativeActivity framework class.
+             This will take care of integrating with our NDK code. -->
+    <activity android:name="@ACTIVITY_CLASS@"
+            android:label="@string/app_name"
+            android:configChanges="orientation|keyboardHidden">
+      <!-- Tell NativeActivity the name of our .so -->
+      <meta-data android:name="android.app.lib_name"
+              android:value="@NATIVE_ACTIVITY_LIB_NAME@" />
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
