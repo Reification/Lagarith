@@ -1,5 +1,6 @@
 #see also GLES_VERSION in Packaging/CMakeLists.txt
-set(LINK_LIBS EGL GLESv1_CM lagarith_test)
+set(LINK_LIBS EGL GLESv1_CM)
+set(WHOLE_LINK_LIBS lagarith_test)
 set(SLN_FOLDER "Testing/")
 set(INCLUDE_DIRS "${PROJECT_SOURCE_DIR}")
 
@@ -42,8 +43,11 @@ target_include_directories(
  ${INCLUDE_DIRS}
 )
 
+SET (WHOLE_LIBS -Wl,--whole-archive ${WHOLE_LINK_LIBS} -Wl,--no-whole-archive)
+
 target_link_libraries(
   ${SUBPROJECT_NAME}
   PRIVATE
   ${LINK_LIBS}
+	${WHOLE_LIBS}
 )

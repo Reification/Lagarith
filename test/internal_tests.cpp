@@ -1,4 +1,4 @@
-#include "test_internal.h"
+#include "test_framework.h"
 
 #if defined(_WINDOWS)
 
@@ -66,7 +66,7 @@ inline __m128i vcombine_s64(int64x1_t lo, int64x1_t hi) {
 DECLARE_TEST(loadl_epi64_Test) {
 	const __m128i v128           = int64x2_t(0x4444444433333333ll, 0x2222222211111111ll).asm128i();
 	const __m128i v128low_native = _mm_loadl_epi64(&v128);
-	const __m128i v128low_emul   = lagx_mm_loadl_epi64(&v128);
+	const __m128i v128low_emul   = lag_mm_loadl_epi64(&v128);
 
 	if (int64x2_t(v128low_native) != int64x2_t(v128low_emul)) {
 		return false;
@@ -79,7 +79,7 @@ DECLARE_TEST(setr_epi8_Test) {
 #	define ALL_16_BYTES 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
 
 	const __m128i v128_native = _mm_setr_epi8(ALL_16_BYTES);
-	const __m128i v128_emul   = lagx_mm_setr_epi8(ALL_16_BYTES);
+	const __m128i v128_emul   = lag_mm_setr_epi8(ALL_16_BYTES);
 
 	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
 		return false;
@@ -96,7 +96,7 @@ DECLARE_TEST(alignr_epi8_Test) {
 #	define AR_CASE(X)                                                                               \
 	case X:                                                                                          \
 		v128_native = _mm_alignr_epi8(a128, b128, X);                                                  \
-		v128_emul   = lagx_mm_alignr_epi8(a128, b128, X);                                              \
+		v128_emul   = lag_mm_alignr_epi8(a128, b128, X);                                              \
 		break
 
 	for (uint32_t i = 0; i <= 32; i++) {
@@ -152,7 +152,7 @@ DECLARE_TEST(unpacklo_epi64_Test) {
 	const __m128i a128        = int64x2_t(0xffeeddccbbaa9988ll, 0x7766554433221100ll).asm128i();
 	const __m128i b128        = int64x2_t(0x00ff11ee22dd33ccll, 0x44bb55aa66997788ll).asm128i();
 	const __m128i v128_native = _mm_unpacklo_epi64(a128, b128);
-	const __m128i v128_emul   = lagx_mm_unpacklo_epi64(a128, b128);
+	const __m128i v128_emul   = lag_mm_unpacklo_epi64(a128, b128);
 
 	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
 		return false;
@@ -172,7 +172,7 @@ DECLARE_TEST(lddqu_si128_Test) {
 	}
 
 	const __m128i v128_native = _mm_lddqu_si128(pData);
-	const __m128i v128_emul   = lagx_mm_lddqu_si128(pData);
+	const __m128i v128_emul   = lag_mm_lddqu_si128(pData);
 
 	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
 		return false;
@@ -186,9 +186,9 @@ DECLARE_TEST(shufflelo_epi16_Test) {
 	const int     shuffle1     = _MM_SHUFFLE(1, 1, 2, 2);
 	const __m128i v128         = int64x2_t(0xffeeddccbbaa9988ll, 0x7766554433221100ll).asm128i();
 	const __m128i s128_native0 = _mm_shufflelo_epi16(v128, shuffle0);
-	const __m128i s128_emul0   = lagx_mm_shufflelo_epi16(v128, shuffle0);
+	const __m128i s128_emul0   = lag_mm_shufflelo_epi16(v128, shuffle0);
 	const __m128i s128_native1 = _mm_shufflelo_epi16(v128, shuffle1);
-	const __m128i s128_emul1   = lagx_mm_shufflelo_epi16(v128, shuffle1);
+	const __m128i s128_emul1   = lag_mm_shufflelo_epi16(v128, shuffle1);
 
 	if (int64x2_t(s128_native0) != int64x2_t(s128_emul0)) {
 		return false;
@@ -208,9 +208,9 @@ DECLARE_TEST(shuffle_epi8_Test) {
 
 	const __m128i v128         = int64x2_t(0xffeeddccbbaa9988ll, 0x7766554433221100ll).asm128i();
 	const __m128i s128_native0 = _mm_shuffle_epi8(v128, shuffle0);
-	const __m128i s128_emul0   = lagx_mm_shuffle_epi8(v128, shuffle0);
+	const __m128i s128_emul0   = lag_mm_shuffle_epi8(v128, shuffle0);
 	const __m128i s128_native1 = _mm_shuffle_epi8(v128, shuffle1);
-	const __m128i s128_emul1   = lagx_mm_shuffle_epi8(v128, shuffle1);
+	const __m128i s128_emul1   = lag_mm_shuffle_epi8(v128, shuffle1);
 
 	if (int64x2_t(s128_native0) != int64x2_t(s128_emul0)) {
 		return false;
@@ -228,7 +228,7 @@ DECLARE_TEST(emulu_Test) {
 		uint32_t a      = (1 << i);
 		uint32_t b      = (1 << (i / 2));
 		uint64_t prodEx = __emulu(a, b);
-		uint64_t prodAc = lagx__emulu(a, b);
+		uint64_t prodAc = lag__emulu(a, b);
 
 		if (prodEx != prodAc) {
 			return false;

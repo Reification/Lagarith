@@ -55,14 +55,6 @@
 #	include "sse2neon/SSE2NEON.h"
 #	include "lag_sse2neon_ext.h"
 
-#	define lag_mm_loadl_epi64 lagx_mm_loadl_epi64
-#	define lag_mm_setr_epi8 lagx_mm_setr_epi8
-#	define lag_mm_alignr_epi8 lagx_mm_alignr_epi8
-#	define lag_mm_unpacklo_epi64 lagx_mm_unpacklo_epi64
-#	define lag_mm_lddqu_si128 lagx_mm_lddqu_si128
-#	define lag_mm_shuffle_epi8 lagx_mm_shuffle_epi8
-#	define lag_mm_shufflelo_epi16 lagx_mm_shufflelo_epi16
-#	define lag__emulu lagx__emulu
 #endif // LAGARITH_ARM64
 
 template <typename T> inline void lag_aligned_free(T*& ptr, const char* str) {

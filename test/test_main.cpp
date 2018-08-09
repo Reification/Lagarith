@@ -1,6 +1,5 @@
 #include "lagarith_testing.h"
-#include "test_internal.h"
-#include <vector>
+#include "test_framework.h"
 
 // set via cmake compiler flags when building test as library instead of executable.
 #if !defined(LAGARITH_TEST_IS_LIB)
@@ -17,24 +16,3 @@ int main(int argc, const char* argv[]) {
 	return numFailures;
 }
 #endif // !LAGARITH_TEST_IS_LIB
-
-int LagarithTesting::runTests() {
-	int testsRun    = 0;
-	int testsPassed = 0;
-
-	for (const TestRegistrar::Test& test : TestRegistrar::GetTests()) {
-		printf("running %s\n", test.name.c_str());
-		bool result = test.function();
-		if (result) {
-			testsPassed++;
-			printf("%s passed.\n", test.name.c_str());
-		} else {
-			fprintf(stderr, "!! %s failed.\n", test.name.c_str());
-		}
-		testsRun++;
-	}
-
-	printf("%d/%d tests passed.\n", testsPassed, testsRun);
-
-	return testsRun - testsPassed;
-}

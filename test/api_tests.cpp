@@ -1,4 +1,4 @@
-#include "test_internal.h"
+#include "test_framework.h"
 
 #include "lagarith.h"
 
@@ -7,14 +7,12 @@
 #include "stb/stb_image.h"
 #include "stb/stb_image_write.h"
 
-#define DUMP_INTERMED_DATA 1
+#define DUMP_INTERMED_DATA 0
 
 // bug in original lagarith - an odd diagonal line of bad pixels appears - likely due to irregular image width.
 // does not occur in 32 bit RGB. fortunately we only need 32 bit RGB.
 #define TEST_RGB24_FORMAT 0
 
-//#undef min
-namespace {
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
 	uint32_t m_width    = 0;
@@ -162,7 +160,7 @@ private:
 	Raster   m_frames[5];
 };
 
-static bool testEncodeDecode(uint32_t channelCount) {
+bool testEncodeDecode(uint32_t channelCount) {
 	RasterSequence srcFrames;
 	RasterSequence decompressedFrames;
 	const char*    fmtName = (channelCount == 3) ? "rgb24" : "rgb32";
@@ -325,11 +323,8 @@ static bool testEncodeDecode(uint32_t channelCount) {
 DECLARE_TEST(testEncodeDecodeRGB) {
 	return testEncodeDecode(3);
 }
-REGISTER_TEST(testEncodeDecodeRGB);
-
 #endif // TEST_RGB24_FORMAT
 
 DECLARE_TEST(testEncodeDecodeRGBX) {
 	return testEncodeDecode(4);
 }
-} // anon namespace
