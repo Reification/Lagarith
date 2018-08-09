@@ -330,9 +330,6 @@ REGISTER_TEST(testEncodeDecodeRGB);
 #endif // TEST_RGB24_FORMAT
 
 DECLARE_TEST(testEncodeDecodeRGBX) {
-	//return testEncodeDecode(4);
-	(void)testEncodeDecode;
-	fprintf(stderr, "warning: skipping test!\n");
-	return true;
+	return testEncodeDecode(4);
 }
 } // anon namespace

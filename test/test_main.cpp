@@ -29,7 +29,7 @@ int LagarithTesting::runTests() {
 			testsPassed++;
 			printf("%s passed.\n", test.name.c_str());
 		} else {
-			fprintf(stderr, "%s failed.\n", test.name.c_str());
+			fprintf(stderr, "!! %s failed.\n", test.name.c_str());
 		}
 		testsRun++;
 	}
