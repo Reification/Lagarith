@@ -24,7 +24,7 @@ if("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files")
   set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
 endif()
 
-set(BUILD_TEST TRUE CACHE BOOL "Build simple manually run test")
+set(BUILD_TEST FALSE CACHE BOOL "Build simple manually run test")
 
 set(BUILD_TEST_AS_LIB FALSE)
 
