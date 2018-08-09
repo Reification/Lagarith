@@ -2,6 +2,12 @@
 
 #if defined(_WINDOWS)
 
+//
+// these tests are to exercise the sse work-alikes implemented for neon.
+// SSE2NEON.h covers a great deal of territory, but not everything used by lagarith.
+// these tests verify the extra sse intrinsics we needed to implement.
+//
+
 #	include <tmmintrin.h>
 #	include <intrin.h>
 
@@ -96,7 +102,7 @@ DECLARE_TEST(alignr_epi8_Test) {
 #	define AR_CASE(X)                                                                               \
 	case X:                                                                                          \
 		v128_native = _mm_alignr_epi8(a128, b128, X);                                                  \
-		v128_emul   = lag_mm_alignr_epi8(a128, b128, X);                                              \
+		v128_emul   = lag_mm_alignr_epi8(a128, b128, X);                                               \
 		break
 
 	for (uint32_t i = 0; i <= 32; i++) {
@@ -162,8 +168,8 @@ DECLARE_TEST(unpacklo_epi64_Test) {
 }
 
 DECLARE_TEST(lddqu_si128_Test) {
-	uint8_t data[17] = {0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
-	                    0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
+	const uint8_t data[] = {0xff, 0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
+	                        0x08, 0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f};
 	static_assert(sizeof(data) == sizeof(__m128i) + 1, "test data is wrong size.");
 	const __m128i* pData = (const __m128i*)(data + 1);
 
