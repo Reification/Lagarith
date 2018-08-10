@@ -45,6 +45,10 @@ void Codec::SetMultithreaded(bool mt) {
 #endif
 }
 
+//
+// VideoSequence implementation
+//
+
 bool VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {
 	m_frames.clear();
 
