@@ -1,6 +1,7 @@
 #include "lagarith_internal.h"
-#include "lags_file.h"
+#include "lagarith.h"
 
+namespace Lagarith {
 
 bool LagsFile::OpenRead( const std::string& path )
 {
@@ -8,8 +9,9 @@ bool LagsFile::OpenRead( const std::string& path )
 	return false;
 }
 
-bool LagsFile::ReadFrame( uint8_t* pDstRaster )
+bool LagsFile::ReadFrame( uint32_t frameIdx, uint8_t* pDstRaster )
 {
+	(void)frameIdx;
 	(void)pDstRaster;
 	return false;
 }
@@ -32,6 +34,7 @@ bool LagsFile::WriteFrame( const uint8_t* pSrcRaster )
 	return false;
 }
 
-bool LagsFile::Close() {
-	return false;
+void LagsFile::Close() {
 }
+
+} // namespace Lagarith

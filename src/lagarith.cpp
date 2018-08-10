@@ -17,7 +17,6 @@
 
 #include "lagarith.h"
 #include "lagarith_internal.h"
-#include "lags_file.h"
 
 namespace Lagarith {
 
@@ -46,41 +45,7 @@ void Codec::SetMultithreaded(bool mt) {
 #endif
 }
 
-//
-// video sequence internal implementation
-//
-
-class VideoSequenceImpl {
-public:
-	VideoSequenceImpl() {}
-	~VideoSequenceImpl() {}
-
-	bool Initialize(const FrameDimensions& frameDims, uint32_t frameCount);
-
-	bool LoadLagsFile(const std::string& lagsFilePath);
-
-	bool SaveLagsFile(const std::string& lagsFilePath) const;
-
-	FrameDimensions GetFrameDimensions() const;
-
-	uint32_t GetFrameCount() const;
-
-	// returns nullptr if frameIndex out of range.
-	uint8_t* GetFrameRaster(uint32_t frameIndex) const;
-
-	uint8_t* AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc);
-
-	bool AddEmptyFrames(uint32_t frameCount);
-
-private:
-	using RasterBuf = std::unique_ptr<uint8_t[]>;
-
-private:
-	std::vector<RasterBuf> m_frames;
-	FrameDimensions        m_frameDims;
-};
-
-bool VideoSequenceImpl::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {
+bool VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {
 	m_frames.clear();
 
 	if (!frameDims.IsValid()) {
@@ -93,10 +58,10 @@ bool VideoSequenceImpl::Initialize(const FrameDimensions& frameDims, uint32_t fr
 	return AddEmptyFrames(frameCount);
 }
 
-bool VideoSequenceImpl::LoadLagsFile(const std::string& lagsFilePath) {
+bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath) {
 	LagsFile src;
 
-	Initialize(FrameDimensions(), 0);
+	Initialize(FrameDimensions());
 
 	if (!src.OpenRead(lagsFilePath)) {
 		return false;
@@ -107,7 +72,7 @@ bool VideoSequenceImpl::LoadLagsFile(const std::string& lagsFilePath) {
 	}
 
 	for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
-		if (!src.ReadFrame(GetFrameRaster(f))) {
+		if (!src.ReadFrame(f, GetFrameRaster(f))) {
 			assert(false && "corrupted lags file!");
 			return false;
 		}
@@ -116,7 +81,7 @@ bool VideoSequenceImpl::LoadLagsFile(const std::string& lagsFilePath) {
 	return true;
 }
 
-bool VideoSequenceImpl::SaveLagsFile(const std::string& lagsFilePath) const {
+bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
 	if (!GetFrameCount()) {
 		return false;
 	}
@@ -139,23 +104,7 @@ bool VideoSequenceImpl::SaveLagsFile(const std::string& lagsFilePath) const {
 	return true;
 }
 
-FrameDimensions VideoSequenceImpl::GetFrameDimensions() const {
-	return m_frameDims;
-}
-
-uint32_t VideoSequenceImpl::GetFrameCount() const {
-	return (uint32_t)m_frames.size();
-}
-
-uint8_t* VideoSequenceImpl::GetFrameRaster(uint32_t frameIndex) const {
-	if (frameIndex < m_frames.size()) {
-		return m_frames[frameIndex].get();
-	}
-
-	return nullptr;
-}
-
-uint8_t* VideoSequenceImpl::AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc) {
+uint8_t* VideoSequence::AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc) {
 	if (!pRasterSrc || !frameDims.IsValid() || frameDims != m_frameDims) {
 		return nullptr;
 	}
@@ -169,7 +118,7 @@ uint8_t* VideoSequenceImpl::AddFrame(const FrameDimensions& frameDims, const uin
 	return pRaster;
 }
 
-bool VideoSequenceImpl::AddEmptyFrames(uint32_t frameCount) {
+bool VideoSequence::AddEmptyFrames(uint32_t frameCount) {
 	if (const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes()) {
 		for (uint32_t i = 0; i < frameCount; i++) {
 			uint8_t* pRaster = new uint8_t[frameSizeBytes];
@@ -180,97 +129,6 @@ bool VideoSequenceImpl::AddEmptyFrames(uint32_t frameCount) {
 		return true;
 	}
 
-	return false;
-}
-
-//
-// Public API Implementation
-//
-
-VideoSequence::VideoSequence()
-  : m_impl(std::unique_ptr<VideoSequenceImpl>(new VideoSequenceImpl())) {}
-
-VideoSequence::VideoSequence(const std::string& lagsFilePath) : VideoSequence() {
-	m_impl->LoadLagsFile(lagsFilePath);
-}
-
-VideoSequence::VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount)
-  : VideoSequence() {
-	m_impl->Initialize(frameDims, frameCount);
-}
-
-VideoSequence::~VideoSequence() {}
-
-bool VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {
-	// check for impl - instance can't be copied but may have been moved.
-	if (m_impl.get()) {
-		return m_impl->Initialize(frameDims, frameCount);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return false;
-}
-
-bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath) {
-	if (m_impl.get()) {
-		return m_impl->LoadLagsFile(lagsFilePath);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return false;
-}
-
-bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
-	if (m_impl.get()) {
-		return m_impl->SaveLagsFile(lagsFilePath);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return false;
-}
-
-FrameDimensions VideoSequence::GetFrameDimensions() const {
-	if (m_impl.get()) {
-		return m_impl->GetFrameDimensions();
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return FrameDimensions();
-}
-
-uint32_t VideoSequence::GetFrameCount() const {
-	if (m_impl.get()) {
-		return m_impl->GetFrameCount();
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return 0;
-}
-
-uint8_t* VideoSequence::GetFrameRaster(uint32_t frameIndex) const {
-	if (m_impl.get()) {
-		return m_impl->GetFrameRaster(frameIndex);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return nullptr;
-}
-
-uint8_t* VideoSequence::AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc) {
-	if (m_impl.get()) {
-		return m_impl->AddFrame(frameDims, pRasterSrc);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
-	return nullptr;
-}
-
-bool VideoSequence::AddEmptyFrames(uint32_t frameCount) {
-	if (m_impl.get()) {
-		return m_impl->AddEmptyFrames(frameCount);
-	}
-
-	assert(false && "instance corrupted or was invalidated with std::move()");
 	return false;
 }
 

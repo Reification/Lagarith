@@ -19,6 +19,8 @@
 
 #include <memory>
 #include <string>
+#include <stdio.h>
+#include <vector>
 
 namespace Lagarith {
 struct ThreadData;
@@ -37,9 +39,12 @@ struct FrameDimensions {
 
 	bool operator!=(const FrameDimensions& rhs) const { return !operator==(rhs); }
 
-	bool     IsValid() const { return w && h && bpp; }
+	bool IsValid() const {
+		return w && h && (bpp == BitsPerPixel::kRGB || bpp == BitsPerPixel::kRGBX);
+	}
 	uint32_t GetPixelCount() const { return w * h; }
-	uint32_t GetSizeBytes() const { return w * h * (((uint32_t)bpp) >> 3); }
+	uint32_t GetBytesPerPixel() const { return ((uint32_t)bpp) >> 3; }
+	uint32_t GetSizeBytes() const { return w * h * GetBytesPerPixel(); }
 };
 
 class Codec {
@@ -90,22 +95,48 @@ private:
 	bool                           multithreading = false;
 };
 
-class VideoSequenceImpl;
+/*! basic video-only file i/o
+ */
+class LagsFile {
+public:
+	LagsFile() {}
+	~LagsFile() { Close(); }
+
+	bool OpenRead(const std::string& path);
+	bool ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster);
+
+	bool OpenWrite(const std::string& path, const FrameDimensions& frameDims);
+	bool WriteFrame(const uint8_t* pSrcRaster);
+
+	void Close();
+
+	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
+	uint32_t               GetFrameCount() const { return m_frameCount; }
+
+private:
+	FrameDimensions m_frameDims;
+	uint32_t        m_frameCount = 0;
+	FILE*           m_fp         = nullptr;
+	bool            m_writeMode  = false;
+};
+
 
 /*! simple RAM-resident video sequence class.
  * supports lags format file i/o
  */
 class VideoSequence {
 public:
-	VideoSequence();
+	VideoSequence() = default;
 
 	//! instantiate and attempt to load video file.
-	explicit VideoSequence(const std::string& lagsFilePath);
+	explicit VideoSequence(const std::string& lagsFilePath) { LoadLagsFile(lagsFilePath); }
 
 	//! instantiate and initialize frame size, allocate frameCount frames if non-zero
-	explicit VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+	explicit VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0) {
+		Initialize(frameDims, frameCount);
+	}
 
-	~VideoSequence();
+	~VideoSequence() = default;
 
 	//! copying not permitted
 	VideoSequence(const VideoSequence&) = delete;
@@ -113,13 +144,13 @@ public:
 	//! copying not permitted
 	VideoSequence& operator=(const VideoSequence&) = delete;
 
-	/*! will initialize or destructively reinitialize the video sequence.
-	 * returns true on success.
+	/*! will always initialize or destructively reinitialize the video sequence.
+	 * returns true if frameDims are valid
 	 * returns false if any member of frameDims is 0. frameCount of 0 is valid.
 	 */
 	bool Initialize(const FrameDimensions& frameDims, uint32_t frameCount = 0);
 
-	/*! will initialize or destructively reinitialize the video sequence.
+	/*! will always initialize or destructively reinitialize the video sequence.
 	 *returns true on success, false for missing or incompatible file.
 	 */
 	bool LoadLagsFile(const std::string& lagsFilePath);
@@ -128,13 +159,15 @@ public:
 	bool SaveLagsFile(const std::string& lagsFilePath) const;
 
 	//! returns currently configured frame dimensions
-	FrameDimensions GetFrameDimensions() const;
+	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
 
 	//! returns current allocated frame count
-	uint32_t GetFrameCount() const;
+	uint32_t GetFrameCount() const { return (uint32_t)m_frames.size(); }
 
 	//! returns nullptr if frameIndex out of range.
-	uint8_t* GetFrameRaster(uint32_t frameIndex) const;
+	uint8_t* GetFrameRaster(uint32_t frameIndex) const {
+		return (frameIndex < m_frames.size()) ? m_frames[frameIndex].get() : nullptr;
+	}
 
 	/*! allocates new frame and copies from pRaster into it.
 	 * video sequence must have been initialized first.
@@ -149,7 +182,11 @@ public:
 	bool AddEmptyFrames(uint32_t frameCount);
 
 private:
-	std::unique_ptr<VideoSequenceImpl> m_impl;
+	using RasterBuf = std::unique_ptr<uint8_t[]>;
+
+private:
+	std::vector<RasterBuf> m_frames;
+	FrameDimensions        m_frameDims;
 };
 
 } // namespace Lagarith

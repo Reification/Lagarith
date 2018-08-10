@@ -126,7 +126,7 @@ public:
 		tempFrame.m_alloced  = false;
 		tempFrame.m_width    = frameDims.w;
 		tempFrame.m_height   = frameDims.h;
-		tempFrame.m_channels = ((uint32_t)frameDims.bpp) / 8;
+		tempFrame.m_channels = frameDims.GetBytesPerPixel();
 
 		for (uint32_t i = 0, e = GetFrameCount(); i < e; i++) {
 			sprintf_s(imageName, format, i);
@@ -142,7 +142,7 @@ public:
 
 	uint32_t GetWidth() const { return GetFrameDimensions().w; }
 	uint32_t GetHeight() const { return GetFrameDimensions().h; }
-	uint32_t GetChannels() const { return ((uint32_t)GetFrameDimensions().bpp) / 8; }
+	uint32_t GetChannels() const { return GetFrameDimensions().GetBytesPerPixel(); }
 	uint32_t GetFrameSizeBytes() const { return GetFrameDimensions().GetSizeBytes(); }
 };
 
@@ -165,7 +165,7 @@ bool testEncodeDecode(uint32_t channelCount) {
 
 	if (!decompressedFrames.Initialize(frameDims, srcFrames.GetFrameCount())) {
 		fprintf(stderr, "Failed initializing raster sequence: %d frames of %dx%dx%d rasters.\n",
-		        srcFrames.GetFrameCount(), frameDims.w, frameDims.h, ((uint32_t)frameDims.bpp) / 8);
+		        srcFrames.GetFrameCount(), frameDims.w, frameDims.h, frameDims.GetBytesPerPixel());
 		return false;
 	}
 
@@ -346,7 +346,7 @@ DECLARE_TEST(testVideoSequenceAVI) {
 		fprintf(
 		  stderr,
 		  "loaded lags video sequence (%dx%dx%dx%d) does not match saved sequence (%dx%dx%dx%d).\n",
-		  d0.w, d0.h, ((uint32_t)d0.bpp) / 8, seq0.GetFrameCount(), d1.w, d1.h, ((uint32_t)d1.bpp) / 8,
+		  d0.w, d0.h, d0.GetBytesPerPixel(), seq0.GetFrameCount(), d1.w, d1.h, d1.GetBytesPerPixel(),
 		  seq1.GetFrameCount());
 		return false;
 	}
