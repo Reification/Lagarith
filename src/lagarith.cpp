@@ -17,6 +17,7 @@
 
 #include "lagarith.h"
 #include "lagarith_internal.h"
+#include "lags_file.h"
 
 namespace Lagarith {
 
@@ -93,11 +94,49 @@ bool VideoSequenceImpl::Initialize(const FrameDimensions& frameDims, uint32_t fr
 }
 
 bool VideoSequenceImpl::LoadLagsFile(const std::string& lagsFilePath) {
-	return false;
+	LagsFile src;
+
+	Initialize(FrameDimensions(), 0);
+
+	if (!src.OpenRead(lagsFilePath)) {
+		return false;
+	}
+
+	if (!Initialize(src.GetFrameDimensions(), src.GetFrameCount())) {
+		return false;
+	}
+
+	for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+		if (!src.ReadFrame(GetFrameRaster(f))) {
+			assert(false && "corrupted lags file!");
+			return false;
+		}
+	}
+
+	return true;
 }
 
 bool VideoSequenceImpl::SaveLagsFile(const std::string& lagsFilePath) const {
-	return false;
+	if (!GetFrameCount()) {
+		return false;
+	}
+
+	LagsFile dst;
+
+	if (!dst.OpenWrite(lagsFilePath, m_frameDims)) {
+		return false;
+	}
+
+	for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+		if (!dst.WriteFrame(GetFrameRaster(f))) {
+			// should only happen if out of disk space.
+			dst.Close();
+			remove(lagsFilePath.c_str());
+			return false;
+		}
+	}
+
+	return true;
 }
 
 FrameDimensions VideoSequenceImpl::GetFrameDimensions() const {
@@ -110,7 +149,7 @@ uint32_t VideoSequenceImpl::GetFrameCount() const {
 
 uint8_t* VideoSequenceImpl::GetFrameRaster(uint32_t frameIndex) const {
 	if (frameIndex < m_frames.size()) {
-		return m_frames[frameIndex].get();	
+		return m_frames[frameIndex].get();
 	}
 
 	return nullptr;
