@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cinttypes>
 #include <memory>
+#include <vector>
 
 #if defined(_WINDOWS)
 #	if !defined(_WIN64)

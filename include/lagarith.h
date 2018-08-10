@@ -24,15 +24,22 @@ namespace Lagarith {
 struct ThreadData;
 class CompressClass;
 
-enum BitsPerPixel : uint8_t { kRGB = 24, kRGBX = 32 };
+enum BitsPerPixel : uint16_t { kRGB = 24, kRGBX = 32 };
 
 struct FrameDimensions {
 	uint16_t     w   = 0;
 	uint16_t     h   = 0;
 	BitsPerPixel bpp = BitsPerPixel::kRGBX;
 
-	const uint32_t GetPixelCount() const { return w * h; }
-	const uint32_t GetSizeBytes() const { return w * h * (bpp >> 3); }
+	bool operator==(const FrameDimensions& rhs) const {
+		return w == rhs.w && h == rhs.h && bpp == rhs.bpp;
+	}
+
+	bool operator!=(const FrameDimensions& rhs) const { return !operator==(rhs); }
+
+	bool     IsValid() const { return w && h && bpp; }
+	uint32_t GetPixelCount() const { return w * h; }
+	uint32_t GetSizeBytes() const { return w * h * (((uint32_t)bpp) >> 3); }
 };
 
 class Codec {
@@ -85,36 +92,64 @@ private:
 
 class VideoSequenceImpl;
 
-//
-// simple RAM-resident video sequence class.
-//
+/*! simple RAM-resident video sequence class.
+ * supports lags format file i/o
+ */
 class VideoSequence {
 public:
 	VideoSequence();
-	VideoSequence(const std::string& lagsFilePath);
-	VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+
+	//! instantiate and attempt to load video file.
+	explicit VideoSequence(const std::string& lagsFilePath);
+
+	//! instantiate and initialize frame size, allocate frameCount frames if non-zero
+	explicit VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+
 	~VideoSequence();
 
-	// these will initialize or destructively reinitialize the video sequence.
-	void Initialize(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+	//! copying not permitted
+	VideoSequence(const VideoSequence&) = delete;
+
+	//! copying not permitted
+	VideoSequence& operator=(const VideoSequence&) = delete;
+
+	/*! will initialize or destructively reinitialize the video sequence.
+	 * returns true on success.
+	 * returns false if any member of frameDims is 0. frameCount of 0 is valid.
+	 */
+	bool Initialize(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+
+	/*! will initialize or destructively reinitialize the video sequence.
+	 *returns true on success, false for missing or incompatible file.
+	 */
 	bool LoadLagsFile(const std::string& lagsFilePath);
 
+	//! returns true on success, false if file can't be saved or if current frame count is zero.
 	bool SaveLagsFile(const std::string& lagsFilePath) const;
 
+	//! returns currently configured frame dimensions
 	FrameDimensions GetFrameDimensions() const;
-	uint32_t        GetFrameCount() const;
 
-	// returns nullptr if frameIndex out of range.
-	uint8_t* GetFrameData(uint32_t frameIndex) const;
+	//! returns current allocated frame count
+	uint32_t GetFrameCount() const;
 
-	// video sequence must have been initialized first.
-	// pRaster must be nullptr or sized/formatted to match current video frame format
-	// return value is pointer to new raster
-	uint8_t* AddFrame(const uint8_t* pRasterSrc);
-	uint8_t* AddEmptyFrame() { return AddFrame(nullptr); }
+	//! returns nullptr if frameIndex out of range.
+	uint8_t* GetFrameRaster(uint32_t frameIndex) const;
+
+	/*! allocates new frame and copies from pRaster into it.
+	 * video sequence must have been initialized first.
+	 * frameDims must match current initalized format.
+	 * pRaster must be non-null and sized/formatted to match specified FrameDimensions
+	 * returns pointer to newly allocated frame raster on success.
+	 * returns nullptr if VideoSequence has not been initialized or frameDims does not match video sequence dimensions.
+	 */
+	uint8_t* AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc);
+
+	//! allocates frameCount new frames. returns true on success, false if Initialize() or LoadLagsFile() has not been successfully called.
+	bool AddEmptyFrames(uint32_t frameCount);
 
 private:
 	std::unique_ptr<VideoSequenceImpl> m_impl;
 };
 
-} // Lagarith
+} // namespace Lagarith

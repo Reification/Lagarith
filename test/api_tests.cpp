@@ -13,6 +13,9 @@
 // does not occur in 32 bit RGB. fortunately we only need 32 bit RGB.
 #define TEST_RGB24_FORMAT 0
 
+//
+// simple wrapper on stb image load and save.
+//
 struct Raster {
 	stbi_uc* m_pBits    = nullptr;
 	uint32_t m_width    = 0;
@@ -76,36 +79,39 @@ struct Raster {
 	}
 };
 
-struct RasterSequence {
+// used to test VideoSequence AVI i/o and as utility in EncodeDecode test
+class RasterSequence : public Lagarith::VideoSequence {
+public:
 	bool Load(uint32_t channels, const char* format, uint32_t first, uint32_t last,
 	          uint32_t step = 1) {
 		char     imageName[128];
 		uint32_t j   = first;
 		uint32_t end = last + step;
 
-		Free();
+		Initialize(Lagarith::FrameDimensions());
 
-		for (uint32_t i = 0; i < (sizeof(m_frames) / sizeof(m_frames[0])) && (j != end);
-		     i++, j += step) {
+		Raster tempFrame;
+
+		for (uint32_t i = 0; (j != end); i++, j += step) {
 			sprintf_s(imageName, format, j);
-			if (!m_frames[i].Load(imageName, channels)) {
+
+			if (!tempFrame.Load(imageName, channels)) {
 				fprintf(stderr, "failed loading image %s.\n", imageName);
-				m_frameCount = 0;
 				return false;
 			}
 
-			if (i && (m_frames[i].m_width != m_frames[0].m_width ||
-			          m_frames[i].m_height != m_frames[0].m_height)) {
-				fprintf(stderr, "image %s does not match frame 0 dimensions.\n", imageName);
-				m_frameCount = 0;
-				return false;
+			const Lagarith::FrameDimensions frameDims = {tempFrame.m_width, tempFrame.m_height,
+			                                             (Lagarith::BitsPerPixel)(channels * 8)};
+			if (!i) {
+				Initialize(frameDims);
 			}
 
-			m_frameCount++;
-		}
-
-		if (j != end) {
-			fprintf(stderr, "warning: only loaded from %d to %d.\n", first, j);
+			if (!AddFrame(frameDims, (uint8_t*)tempFrame.m_pBits)) {
+				Lagarith::FrameDimensions actualDims = GetFrameDimensions();
+				fprintf(stderr, "image %s (%dx%d) does not match sequence dimensions (%dx%d)\n", imageName,
+				        frameDims.w, frameDims.h, actualDims.w, actualDims.h);
+				return false;
+			}
 		}
 
 		return true;
@@ -114,9 +120,18 @@ struct RasterSequence {
 	bool Save(const char* format) {
 		char imageName[128];
 
-		for (uint32_t i = 0; i < m_frameCount; i++) {
+		const Lagarith::FrameDimensions frameDims = GetFrameDimensions();
+		Raster                          tempFrame;
+
+		tempFrame.m_alloced  = false;
+		tempFrame.m_width    = frameDims.w;
+		tempFrame.m_height   = frameDims.h;
+		tempFrame.m_channels = ((uint32_t)frameDims.bpp) / 8;
+
+		for (uint32_t i = 0, e = GetFrameCount(); i < e; i++) {
 			sprintf_s(imageName, format, i);
-			if (!m_frames[i].Save(imageName)) {
+			tempFrame.m_pBits = (stbi_uc*)GetFrameRaster(i);
+			if (!tempFrame.Save(imageName)) {
 				fprintf(stderr, "failed to save frame %s\n", imageName);
 				return false;
 			}
@@ -125,60 +140,35 @@ struct RasterSequence {
 		return true;
 	}
 
-	void Alloc(uint32_t w, uint32_t h, uint32_t channels, uint32_t frames) {
-		Free();
-		for (uint32_t i = 0; i < frames && i < sizeof(m_frames) / sizeof(m_frames[0]); i++) {
-			m_frames[i].Alloc(w, h, channels);
-			m_frameCount++;
-		}
-	}
-
-	void Alloc(const RasterSequence& rhs) {
-		Alloc(rhs.GetWidth(), rhs.GetHeight(), rhs.GetChannels(), rhs.GetFrameCount());
-	}
-
-	void Free() {
-		for (uint32_t i = 0; i < (sizeof(m_frames) / sizeof(m_frames[0])); i++) {
-			m_frames[i].Free();
-		}
-		m_frameCount = 0;
-	}
-
-	uint32_t GetWidth() const { return m_frames[0].m_width; }
-	uint32_t GetHeight() const { return m_frames[0].m_height; }
-	uint32_t GetChannels() const { return m_frames[0].m_channels; }
-	stbi_uc* GetBits(uint32_t frameIdx) const {
-		return frameIdx < m_frameCount ? m_frames[frameIdx].m_pBits : nullptr;
-	}
-
-	uint32_t GetFrameSizeBytes() const { return m_frames[0].GetSizeBytes(); }
-	uint32_t GetSequenceSizeBytes() const { return GetFrameSizeBytes() * m_frameCount; }
-	uint32_t GetFrameCount() const { return m_frameCount; }
-
-private:
-	uint32_t m_frameCount = 0;
-	Raster   m_frames[5];
+	uint32_t GetWidth() const { return GetFrameDimensions().w; }
+	uint32_t GetHeight() const { return GetFrameDimensions().h; }
+	uint32_t GetChannels() const { return ((uint32_t)GetFrameDimensions().bpp) / 8; }
+	uint32_t GetFrameSizeBytes() const { return GetFrameDimensions().GetSizeBytes(); }
 };
 
 bool testEncodeDecode(uint32_t channelCount) {
-	RasterSequence srcFrames;
-	RasterSequence decompressedFrames;
 	const char*    fmtName = (channelCount == 3) ? "rgb24" : "rgb32";
 	bool           result  = false;
+	RasterSequence srcFrames;
 
 	if (!srcFrames.Load(channelCount, "test_data/frame_%02d.png", 0, 4)) {
 		return false;
 	}
 
-	decompressedFrames.Alloc(srcFrames);
+	const Lagarith::FrameDimensions frameDims               = srcFrames.GetFrameDimensions();
+	const uint32_t                  inputFrameSize          = frameDims.GetSizeBytes();
+	uint32_t                        compressedFrameSizes[5] = {};
+	void*                           compressedFrames[5]     = {};
+	uint32_t                        totalCompressedSize     = 0;
+	std::vector<uint8_t>            compressedBuf;
+	RasterSequence                  decompressedFrames;
 
-	const uint32_t            inputFrameSize          = srcFrames.GetFrameSizeBytes();
-	uint32_t                  compressedFrameSizes[5] = {};
-	void*                     compressedFrames[5]     = {};
-	std::vector<uint8_t>      compressedBuf;
-	uint32_t                  totalCompressedSize = 0;
-	const Lagarith::FrameDimensions frameDims           = {srcFrames.GetWidth(), srcFrames.GetHeight(),
-                                         (Lagarith::BitsPerPixel)(srcFrames.GetChannels() * 8)};
+	if (!decompressedFrames.Initialize(frameDims, srcFrames.GetFrameCount())) {
+		fprintf(stderr, "Failed initializing raster sequence: %d frames of %dx%dx%d rasters.\n",
+		        srcFrames.GetFrameCount(), frameDims.w, frameDims.h, ((uint32_t)frameDims.bpp) / 8);
+		return false;
+	}
+
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
 	// encode execution
@@ -198,7 +188,7 @@ bool testEncodeDecode(uint32_t channelCount) {
 		uint8_t*    pDstBits = compressedBuf.data();
 		uint32_t    i        = 0;
 
-		for (; !!(pSrcBits = srcFrames.GetBits(i)); i++) {
+		for (; !!(pSrcBits = srcFrames.GetFrameRaster(i)); i++) {
 			result = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
 
 			if (!result) {
@@ -215,8 +205,9 @@ bool testEncodeDecode(uint32_t channelCount) {
 		pCode->CompressEnd();
 
 		printf("Original size: %d bytes. Total compressed size: %d bytes. compression factor: %g\n",
-		       srcFrames.GetSequenceSizeBytes(), totalCompressedSize,
-		       (double)totalCompressedSize / (double)srcFrames.GetSequenceSizeBytes());
+		       srcFrames.GetFrameSizeBytes() * srcFrames.GetFrameCount(), totalCompressedSize,
+		       (double)totalCompressedSize /
+		         (double)(srcFrames.GetFrameSizeBytes() * srcFrames.GetFrameCount()));
 	}
 
 	// decode execution
@@ -235,7 +226,7 @@ bool testEncodeDecode(uint32_t channelCount) {
 		uint8_t* pDstBits = nullptr;
 		uint32_t i        = 0;
 
-		for (; !!(pDstBits = decompressedFrames.GetBits(i)); i++) {
+		for (; !!(pDstBits = decompressedFrames.GetFrameRaster(i)); i++) {
 			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
 
 			if (!result) {
@@ -272,8 +263,8 @@ bool testEncodeDecode(uint32_t channelCount) {
 		uint32_t mismatches = 0;
 
 		for (uint32_t i = 0; i < srcFrames.GetFrameCount(); i++) {
-			const stbi_uc* pOrigBits      = srcFrames.GetBits(i);
-			const stbi_uc* pRoundTripBits = decompressedFrames.GetBits(i);
+			const stbi_uc* pOrigBits      = (stbi_uc*)srcFrames.GetFrameRaster(i);
+			const stbi_uc* pRoundTripBits = (stbi_uc*)decompressedFrames.GetFrameRaster(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
 				char imageName[128];
 				sprintf_s(imageName, "test_data/mismatched_%s_frame_%02d.png", fmtName, i);
@@ -326,4 +317,50 @@ DECLARE_TEST(testEncodeDecodeRGB) {
 
 DECLARE_TEST(testEncodeDecodeRGBX) {
 	return testEncodeDecode(4);
+}
+
+DECLARE_TEST(testVideoSequenceAVI) {
+	RasterSequence seq0;
+
+	if (!seq0.Load(4, "test_data/frame_%02d.png", 0, 4)) {
+		return false;
+	}
+
+	const Lagarith::FrameDimensions d0 = seq0.GetFrameDimensions();
+
+	if (!seq0.SaveLagsFile("test_data/lags_save_test.avi")) {
+		fprintf(stderr, "failed saving lags avi file.\n");
+		return false;
+	}
+
+	RasterSequence seq1;
+
+	if (!seq1.LoadLagsFile("test_data/lags_save_test.avi")) {
+		fprintf(stderr, "failed loading lags avi file.\n");
+		return false;
+	}
+
+	const Lagarith::FrameDimensions d1 = seq1.GetFrameDimensions();
+
+	if (d0 != d1 || seq0.GetFrameCount() != seq1.GetFrameCount()) {
+		fprintf(
+		  stderr,
+		  "loaded lags video sequence (%dx%dx%dx%d) does not match saved sequence (%dx%dx%dx%d).\n",
+		  d0.w, d0.h, ((uint32_t)d0.bpp) / 8, seq0.GetFrameCount(), d1.w, d1.h, ((uint32_t)d1.bpp) / 8,
+		  seq1.GetFrameCount());
+		return false;
+	}
+
+	const uint32_t frameSizeBytes = d0.GetSizeBytes();
+
+	for (uint32_t f = 0, e = seq0.GetFrameCount(); f < e; f++) {
+		const void* pR0 = seq0.GetFrameRaster(f);
+		const void* pR1 = seq1.GetFrameRaster(f);
+		if (memcmp(pR0, pR1, frameSizeBytes)) {
+			fprintf(stderr, "loaded/saved rasters don't match at frame %d\n", f);
+			return false;
+		}
+	}
+
+	return true;
 }
