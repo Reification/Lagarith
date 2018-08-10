@@ -172,12 +172,13 @@ bool testEncodeDecode(uint32_t channelCount) {
 
 	decompressedFrames.Alloc(srcFrames);
 
-	const uint32_t       inputFrameSize          = srcFrames.GetFrameSizeBytes();
-	uint32_t             compressedFrameSizes[5] = {};
-	void*                compressedFrames[5]     = {};
-	std::vector<uint8_t> compressedBuf;
-	uint32_t             totalCompressedSize = 0;
-
+	const uint32_t            inputFrameSize          = srcFrames.GetFrameSizeBytes();
+	uint32_t                  compressedFrameSizes[5] = {};
+	void*                     compressedFrames[5]     = {};
+	std::vector<uint8_t>      compressedBuf;
+	uint32_t                  totalCompressedSize = 0;
+	const Lagarith::FrameDimensions frameDims           = {srcFrames.GetWidth(), srcFrames.GetHeight(),
+                                         (Lagarith::BitsPerPixel)(srcFrames.GetChannels() * 8)};
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
 	// encode execution
@@ -186,8 +187,7 @@ bool testEncodeDecode(uint32_t channelCount) {
 
 		pCode->SetMultithreaded(true);
 
-		result = pCode->CompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
-		                              srcFrames.GetChannels() * 8);
+		result = pCode->CompressBegin(frameDims);
 
 		if (!result) {
 			fprintf(stderr, "CompressBegin failed.\n");
@@ -225,8 +225,7 @@ bool testEncodeDecode(uint32_t channelCount) {
 
 		pCode->SetMultithreaded(true);
 
-		result = pCode->DecompressBegin(srcFrames.GetWidth(), srcFrames.GetHeight(),
-		                                srcFrames.GetChannels() * 8);
+		result = pCode->DecompressBegin(frameDims);
 
 		if (!result) {
 			fprintf(stderr, "DecompressBegin failed.\n");

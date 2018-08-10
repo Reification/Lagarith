@@ -18,22 +18,34 @@
 #pragma once
 
 #include <memory>
+#include <string>
 
 namespace Lagarith {
 struct ThreadData;
 class CompressClass;
+
+enum BitsPerPixel : uint8_t { kRGB = 24, kRGBX = 32 };
+
+struct FrameDimensions {
+	uint16_t     w   = 0;
+	uint16_t     h   = 0;
+	BitsPerPixel bpp = BitsPerPixel::kRGBX;
+
+	const uint32_t GetPixelCount() const { return w * h; }
+	const uint32_t GetSizeBytes() const { return w * h * (bpp >> 3); }
+};
 
 class Codec {
 public:
 	Codec();
 	~Codec();
 
-	bool CompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel);
-	bool Compress(const void* src, void* dst, unsigned int* frameSizeOut);
+	bool CompressBegin(const FrameDimensions& frameDims);
+	bool Compress(const void* src, void* dst, uint32_t* frameSizeBytesOut);
 	void CompressEnd();
 
-	bool DecompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel);
-	bool Decompress(const void* src, uint32_t compressedFrameSize, void* dst);
+	bool DecompressBegin(const FrameDimensions& frameDims);
+	bool Decompress(const void* src, uint32_t compressedFrameSizeBytes, void* dst);
 	void DecompressEnd();
 
 	void SetMultithreaded(bool mt);
@@ -41,7 +53,7 @@ public:
 private:
 	bool InitThreads(int encode);
 	void EndThreads();
-	void CompressRGB24(unsigned int* frameSizeOut);
+	void CompressRGB24(unsigned int* frameSizeBytesOut);
 
 	uint32_t HandleTwoCompressionThreads(uint32_t chan_size);
 
@@ -69,6 +81,40 @@ private:
 	std::unique_ptr<CompressClass> cObj;
 	std::unique_ptr<ThreadData[]>  threads;
 	bool                           multithreading = false;
+};
+
+class VideoSequenceImpl;
+
+//
+// simple RAM-resident video sequence class.
+//
+class VideoSequence {
+public:
+	VideoSequence();
+	VideoSequence(const std::string& lagsFilePath);
+	VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+	~VideoSequence();
+
+	// these will initialize or destructively reinitialize the video sequence.
+	void Initialize(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+	bool LoadLagsFile(const std::string& lagsFilePath);
+
+	bool SaveLagsFile(const std::string& lagsFilePath) const;
+
+	FrameDimensions GetFrameDimensions() const;
+	uint32_t        GetFrameCount() const;
+
+	// returns nullptr if frameIndex out of range.
+	uint8_t* GetFrameData(uint32_t frameIndex) const;
+
+	// video sequence must have been initialized first.
+	// pRaster must be nullptr or sized/formatted to match current video frame format
+	// return value is pointer to new raster
+	uint8_t* AddFrame(const uint8_t* pRasterSrc);
+	uint8_t* AddEmptyFrame() { return AddFrame(nullptr); }
+
+private:
+	std::unique_ptr<VideoSequenceImpl> m_impl;
 };
 
 } // Lagarith

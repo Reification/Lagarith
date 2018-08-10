@@ -19,7 +19,7 @@
 
 namespace Lagarith {
 
-bool Codec::DecompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel) {
+bool Codec::DecompressBegin(const FrameDimensions& frameDims) {
 	if (started == 0x1337) {
 		DecompressEnd();
 	}
@@ -27,9 +27,9 @@ bool Codec::DecompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerPixel) {
 
 	int buffer_size;
 
-	width  = w;
-	height = h;
-	format = bitsPerPixel;
+	width  = frameDims.w;
+	height = frameDims.h;
+	format = frameDims.bpp;
 
 	length = width * height * format / 8;
 
@@ -183,17 +183,17 @@ void Codec::SetSolidFrameRGB32(const uint32_t r, const uint32_t g, const uint32_
 	}
 }
 
-bool Codec::Decompress(const void* src, uint32_t compressedFrameSize, void* dst) {
-	assert(width && height && compressedFrameSize && src && dst &&
+bool Codec::Decompress(const void* src, uint32_t compressedFrameSizeBytes, void* dst) {
+	assert(width && height && compressedFrameSizeBytes && src && dst &&
 	       "decompression not started or invalid frame parameters!");
 
-	if (!(width && height && compressedFrameSize && src && dst)) {
+	if (!(width && height && compressedFrameSizeBytes && src && dst)) {
 		return false;
 	}
 
 	out             = (uint8_t*)dst;
 	in              = (const uint8_t*)src;
-	compressed_size = compressedFrameSize;
+	compressed_size = compressedFrameSizeBytes;
 
 	if (compressed_size == 0) {
 		return true;

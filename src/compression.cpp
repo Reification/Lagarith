@@ -20,15 +20,15 @@
 namespace Lagarith {
 
 // initalize the codec for compression
-bool Codec::CompressBegin(uint32_t w, uint32_t h, uint32_t bitsPerChannel) {
+bool Codec::CompressBegin(const FrameDimensions& frameDims) {
 	if (started == 0x1337) {
 		CompressEnd();
 	}
 	started = 0;
 
-	width  = w;
-	height = h;
-	format = bitsPerChannel;
+	width  = frameDims.w;
+	height = frameDims.h;
+	format = (uint32_t)frameDims.bpp;
 
 	length = width * height * format / 8;
 
@@ -142,7 +142,7 @@ uint32_t Codec::HandleTwoCompressionThreads(uint32_t chan_size) {
 }
 
 // Encode a typical RGB24 frame, input can be RGB24 or RGB32
-void Codec::CompressRGB24(unsigned int* frameSizeOut) {
+void Codec::CompressRGB24(unsigned int* frameSizeBytesOut) {
 	//const uint8_t* src       = in;
 	const uint32_t pixels    = width * height;
 	const uint32_t block_len = align_round(pixels + 32, 16);
@@ -222,21 +222,21 @@ void Codec::CompressRGB24(unsigned int* frameSizeOut) {
 		}
 	}
 
-	*frameSizeOut = size;
+	*frameSizeBytesOut = size;
 }
 
 // called to compress a frame; the actual compression will be
 // handed off to other functions depending on the color space and settings
 
-bool Codec::Compress(const void* src, void* dst, unsigned int* frameSizeOut) {
+bool Codec::Compress(const void* src, void* dst, uint32_t* frameSizeBytesOut) {
 	in  = (const uint8_t*)src;
 	out = (uint8_t*)dst;
 
-	assert(width && height && format && src && dst && frameSizeOut &&
+	assert(width && height && format && src && dst && frameSizeBytesOut &&
 	       "CompressBegin not called or invalid frame parameters");
 
-	if (width && height && format && src && dst && frameSizeOut) {
-		CompressRGB24(frameSizeOut);
+	if (width && height && format && src && dst && frameSizeBytesOut) {
+		CompressRGB24(frameSizeBytesOut);
 		return true;
 	}
 

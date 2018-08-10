@@ -45,4 +45,40 @@ void Codec::SetMultithreaded(bool mt) {
 #endif
 }
 
+class VideoSequenceImpl
+{
+public:
+};
+
+VideoSequence::VideoSequence() {}
+VideoSequence::VideoSequence(const std::string& lagsFilePath) {}
+VideoSequence::VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount) {}
+VideoSequence::~VideoSequence() {}
+
+void VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {}
+
+bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath) {
+	return false;
+}
+
+bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
+	return false;
+}
+
+FrameDimensions VideoSequence::GetFrameDimensions() const {
+	return FrameDimensions();
+}
+
+uint32_t VideoSequence::GetFrameCount() const {
+	return 0;
+}
+
+uint8_t* VideoSequence::GetFrameData(uint32_t frameIndex) const {
+	return nullptr;
+}
+
+uint8_t* VideoSequence::AddFrame(const uint8_t* pRasterSrc) {
+	return nullptr;
+}
+
 } // namespace Lagarith
