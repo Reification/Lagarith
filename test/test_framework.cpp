@@ -22,12 +22,21 @@ int Test::runTests() {
 			testsPassed++;
 			printf("%s passed.\n", test->name.c_str());
 		} else {
-			printf("!! %s failed.\n", test->name.c_str());
+			printf("!! %s FAILED !!\n", test->name.c_str());
 		}
 		testsRun++;
 	}
 
-	printf("%d/%d tests passed.\n", testsPassed, testsRun);
+	const int testsFailed = testsRun - testsPassed;
 
-	return testsRun - testsPassed;
+	if (!testsFailed) {
+		printf("%d test%s passed.\n", testsRun, testsRun == 1 ? "" : "s");
+	} else {
+		printf("!! %d TEST%s FAILED out of %d test%s run !!\n",
+						testsFailed, testsFailed == 1 ? "" : "S",
+						testsRun,
+						testsRun == 1 ? "" : "s");
+	}
+
+	return testsFailed;
 }

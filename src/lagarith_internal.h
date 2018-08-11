@@ -6,6 +6,7 @@
 #include <cinttypes>
 #include <memory>
 #include <vector>
+#include <stdio.h>
 
 #if defined(_WINDOWS)
 #	if !defined(_WIN64)
@@ -37,6 +38,8 @@
 #	define LAGARITH_MULTITHREAD_SUPPORT 0
 #	include <unistd.h>
 #	define __assume(A)
+# define _ftelli64 ftello
+# define _fseeki64 fseeko
 #endif
 
 #if defined(LAGARITH_X64)

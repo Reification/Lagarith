@@ -19,7 +19,6 @@
 
 #include <memory>
 #include <string>
-#include <stdio.h>
 #include <vector>
 
 namespace Lagarith {
@@ -42,6 +41,7 @@ struct FrameDimensions {
 	bool IsValid() const {
 		return w && h && (bpp == BitsPerPixel::kRGB || bpp == BitsPerPixel::kRGBX);
 	}
+
 	uint32_t GetPixelCount() const { return w * h; }
 	uint32_t GetBytesPerPixel() const { return ((uint32_t)bpp) >> 3; }
 	uint32_t GetSizeBytes() const { return w * h * GetBytesPerPixel(); }
@@ -76,31 +76,34 @@ private:
 	void ArithRGBDecompress();
 
 private:
-	int            started = 0;
-	uint8_t*       buffer  = nullptr;
-	uint8_t*       prev    = nullptr;
-	const uint8_t* in      = nullptr;
-	uint8_t*       out     = nullptr;
-	uint8_t*       buffer2 = nullptr;
-
-	uint32_t length = 0;
-	uint32_t width  = 0;
-	uint32_t height = 0;
-	//input format for compressing, output format for decompression. Also the bitdepth.
-	uint32_t format          = 0;
-	uint32_t compressed_size = 0;
+	int            started         = 0;
+	uint8_t*       buffer          = nullptr;
+	uint8_t*       prev            = nullptr;
+	const uint8_t* in              = nullptr;
+	uint8_t*       out             = nullptr;
+	uint8_t*       buffer2         = nullptr;
+	uint32_t       length          = 0;
+	uint32_t       width           = 0;
+	uint32_t       height          = 0;
+	uint32_t       format          = 0;
+	uint32_t       compressed_size = 0;
+	bool           multithreading  = false;
 
 	std::unique_ptr<CompressClass> cObj;
 	std::unique_ptr<ThreadData[]>  threads;
-	bool                           multithreading = false;
 };
 
 /*! basic video-only file i/o
  */
+
+namespace Impl {
+	struct LagsFileState;
+}
+
 class LagsFile {
 public:
-	LagsFile() {}
-	~LagsFile() { Close(); }
+	LagsFile();
+	~LagsFile();
 
 	bool OpenRead(const std::string& path);
 	bool ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster);
@@ -108,16 +111,18 @@ public:
 	bool OpenWrite(const std::string& path, const FrameDimensions& frameDims);
 	bool WriteFrame(const uint8_t* pSrcRaster);
 
-	void Close();
+	bool Close();
+
+	bool IsOpen() const { return m_frameDims.IsValid(); }
+	bool IsWriteMode() const;	
 
 	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
 	uint32_t               GetFrameCount() const { return m_frameCount; }
 
 private:
-	FrameDimensions m_frameDims;
-	uint32_t        m_frameCount = 0;
-	FILE*           m_fp         = nullptr;
-	bool            m_writeMode  = false;
+	std::unique_ptr<Impl::LagsFileState> m_state;
+	FrameDimensions                m_frameDims;
+	uint32_t                       m_frameCount = 0;
 };
 
 
