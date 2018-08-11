@@ -21,18 +21,20 @@ struct Raster {
 	uint32_t m_width    = 0;
 	uint32_t m_height   = 0;
 	uint32_t m_channels = 0;
-	uint32_t m_alloced  = 0;
+	uint16_t m_bAlloced = false;
+	uint16_t m_bOwned   = false;
 
 	Raster() = default;
 	~Raster() { Free(); }
 
 	uint32_t GetSizeBytes() const { return m_width * m_height * m_channels; }
 
-	bool Load(const char* path, uint32_t channels = 0) {
+	bool Load(const char* path, uint32_t channels) {
 		Free();
 		m_pBits = stbi_load(path, (int*)&m_width, (int*)&m_height, (int*)&m_channels, (int)channels);
-		if (channels && m_pBits) {
+		if (m_pBits) {
 			m_channels = channels;
+			m_bOwned   = true;
 		}
 		return !!m_pBits;
 	}
@@ -61,21 +63,25 @@ struct Raster {
 			if (c & 3) {
 				sizeBytes = (((w + 3) >> 2) << 2) * h * c;
 			}
-			m_pBits   = new stbi_uc[sizeBytes];
-			m_alloced = true;
+			m_pBits    = new stbi_uc[sizeBytes];
+			m_bAlloced = true;
+			m_bOwned   = true;
 		}
 	}
 
 	void Free() {
 		if (m_pBits) {
-			if (m_alloced) {
-				delete[] m_pBits;
-			} else {
-				stbi_image_free(m_pBits);
+			if (m_bOwned) {
+				if (m_bAlloced) {
+					delete[] m_pBits;
+				} else {
+					stbi_image_free(m_pBits);
+				}
 			}
 			m_pBits = nullptr;
 		}
-		m_alloced = m_width = m_height = m_channels = 0;
+		m_bAlloced = m_bOwned = false;
+		m_width = m_height = m_channels = 0;
 	}
 };
 
@@ -123,7 +129,7 @@ public:
 		const Lagarith::FrameDimensions frameDims = GetFrameDimensions();
 		Raster                          tempFrame;
 
-		tempFrame.m_alloced  = false;
+		tempFrame.m_bOwned   = false;
 		tempFrame.m_width    = frameDims.w;
 		tempFrame.m_height   = frameDims.h;
 		tempFrame.m_channels = frameDims.GetBytesPerPixel();
