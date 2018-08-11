@@ -3,6 +3,8 @@
 
 namespace Lagarith {
 
+#define USE_TEMP_IMPL_FORMAT 1
+
 namespace Impl {
 	inline static constexpr uint32_t genFourCC(const char* const code) noexcept {
 		return (static_cast<uint32_t>(code[0]) << 24) |
@@ -98,7 +100,7 @@ namespace Impl {
 		uint32_t m_paddingGranularity = kDefaultPaddingGranularity;
 
 		// the ever-present flags - combination of AVIF_ values above - just set AVIF_HASINDEX
-		uint32_t m_flags = AVIF_HASINDEX;
+		uint32_t m_flags = 0; //temporary - should be AVIF_HASINDEX;
 
 		// # frames in RIFF-AVI section (does not count additional RIFF-AVIX sections)
 		uint32_t m_totalFrames = 0;
@@ -165,11 +167,7 @@ namespace Impl {
 		kChunkSize_strf = sizeof(ChunkHeader) + sizeof(STRFChunkData),
 
 		kListDataSize_strl = kChunkSize_strh + kChunkSize_strf,
-		kListDataSize_hdrl = sizeof(kChunkSize_avih) + sizeof(ListHeader) + kListDataSize_strl,
-
-		kOffset_avih = sizeof(ListHeader) + sizeof(ListHeader) + sizeof(ChunkHeader),
-		kOffset_strh = kOffset_avih + sizeof(AVIHChunkData) + sizeof(ListHeader) + sizeof(ChunkHeader),
-		kOffset_strf = kOffset_strh + sizeof(STRHChunkData) + sizeof(ChunkHeader)
+		kListDataSize_hdrl = sizeof(kChunkSize_avih) + sizeof(ListHeader) + kListDataSize_strl
 	};
 
 	ChunkHeader::ChunkHeader(uint32_t fourCC) : m_fourCC(fourCC), m_sizeBytes(0) {
@@ -189,10 +187,23 @@ namespace Impl {
 		}
 	}
 
+	struct FrameLocation {
+		uint64_t m_frameOffset;
+		uint64_t m_frameSize;
+	};
+
 	struct LagsFileState {
 		~LagsFileState() {
 			if (m_fp) {
 				fclose(m_fp);
+			}
+
+			if (m_bEncoderInitialized) {
+				m_encoder.CompressEnd();
+			}
+
+			if (m_bDecoderInitialized) {
+				m_decoder.DecompressEnd();
 			}
 		}
 
@@ -255,12 +266,18 @@ namespace Impl {
 			return false;
 		}
 
-		bool seek_frame(uint32_t frameIdx) {
-			if (frameIdx >= m_frameOffsets.size()) {
+		bool seek_frame(uint32_t frameIdx, uint64_t* pFrameSizeOut) {
+			if (frameIdx >= m_frameLocations.size()) {
 				return false;
 			}
 
-			return seek_set(m_frameOffsets[frameIdx]);
+			const FrameLocation loc = m_frameLocations[frameIdx];
+
+			if (pFrameSizeOut) {
+				*pFrameSizeOut = loc.m_frameSize;
+			}
+
+			return seek_set(loc.m_frameOffset);
 		}
 
 		template <typename T> bool read(T* item, uint32_t count = 1) {
@@ -304,18 +321,57 @@ namespace Impl {
 			return false;
 		}
 
-		FILE*                 m_fp           = nullptr;
-		bool                  m_bCanWrite    = false;
-		bool                  m_bCanRead     = false;
-		bool                  m_bOpenedWrite = false;
-		std::vector<uint64_t> m_frameOffsets;
-		AVIHChunkData         m_avihData;
-		STRHChunkData         m_strhData;
-		STRFChunkData         m_strfData;
+		bool initEncoder(FrameDimensions dims) {
+			assert(!m_bEncoderInitialized);
+			m_bEncoderInitialized = m_encoder.CompressBegin(dims);
+			if (m_bEncoderInitialized) {
+				const size_t tempBufSize = (size_t)(dims.GetSizeBytes() * 1.1);
+
+				if (m_endecodeTempBuf.empty()) {
+					m_endecodeTempBuf.resize(tempBufSize);
+				}
+
+				assert((m_endecodeTempBuf.size() == tempBufSize) &&
+				       "encoder/decoder set up for different sizes!");
+			}
+			return m_bEncoderInitialized;
+		}
+
+		bool initDecoder(FrameDimensions dims) {
+			assert(!m_bDecoderInitialized);
+			m_bDecoderInitialized = m_decoder.CompressBegin(dims);
+			if (m_bDecoderInitialized) {
+				const size_t tempBufSize = (size_t)(dims.GetSizeBytes() * 1.1);
+
+				if (m_endecodeTempBuf.empty()) {
+					m_endecodeTempBuf.resize(tempBufSize);
+				}
+
+				assert((m_endecodeTempBuf.size() == tempBufSize) &&
+				       "encoder/decoder set up for different sizes!");
+			}
+			return m_bDecoderInitialized;
+		}
+
+		FILE*                      m_fp           = nullptr;
+		bool                       m_bCanWrite    = false;
+		bool                       m_bCanRead     = false;
+		bool                       m_bOpenedWrite = false;
+		std::vector<FrameLocation> m_frameLocations;
+		AVIHChunkData              m_avihData;
+		STRHChunkData              m_strhData;
+		STRFChunkData              m_strfData;
+		std::vector<uint8_t>       m_endecodeTempBuf;
+
+		Codec m_decoder;
+		Codec m_encoder;
+		bool  m_bDecoderInitialized = false;
+		bool  m_bEncoderInitialized = false;
 	};
 
+#if USE_TEMP_IMPL_FORMAT
 	struct TempImplOffsets {
-		uint64_t m_frameOffsets[1];
+		FrameLocation m_offsets[1];
 	};
 
 	enum : uint32_t { kTempImplMagic = 0x1a651a64 };
@@ -323,9 +379,10 @@ namespace Impl {
 	struct TempImplFileHeader {
 		uint32_t        m_magic;
 		FrameDimensions m_frameDims;
-		uint32_t        m_frameCount         = 0;
-		uint64_t        m_frameOffsetsOffset = 0;
+		uint32_t        m_frameCount           = 0;
+		uint64_t        m_frameLocationsOffset = 0;
 	};
+#endif // USE_TEMP_IMPL_FORMAT
 }
 
 using namespace Impl;
@@ -343,20 +400,26 @@ bool LagsFile::OpenRead(const std::string& path) {
 		return false;
 	}
 
+	bool result = false;
+
+#if USE_TEMP_IMPL_FORMAT
 	TempImplFileHeader hdr;
 
-	bool result = m_state->read(&hdr);
+	result = m_state->read(&hdr);
 
 	result = result && (hdr.m_magic == kTempImplMagic);
 
 	if (result) {
 		m_frameDims  = hdr.m_frameDims;
 		m_frameCount = hdr.m_frameCount;
-		m_state->m_frameOffsets.resize(hdr.m_frameCount);
+		m_state->m_frameLocations.resize(hdr.m_frameCount);
 	}
 
-	result = result && m_state->seek_set(hdr.m_frameOffsetsOffset);
-	result = result && m_state->read(m_state->m_frameOffsets.data(), m_frameCount);
+	result = result && m_state->seek_set(hdr.m_frameLocationsOffset);
+	result = result && m_state->read(m_state->m_frameLocations.data(), m_frameCount);
+#endif // USE_TEMP_IMPL_FORMAT
+
+	result = result && m_state->initDecoder(m_frameDims);
 
 	if (!result) {
 		Close();
@@ -372,7 +435,16 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 		return false;
 	}
 
-#if 0
+	bool result = true;
+
+#if USE_TEMP_IMPL_FORMAT
+
+	TempImplFileHeader hdr = {kTempImplMagic, m_frameDims, m_frameCount, 0};
+
+	result = m_state->write(&hdr);
+
+#else // USE_TEMP_IMPL_FORMAT
+
 	ListHeader  riffAVI(k4CC_AVI);
 	ListHeader  listHDRL(k4CC_hdrl);
 	ChunkHeader chunkAVIH(k4CC_avih);
@@ -389,52 +461,66 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	m_state->m_strfData.m_bitCount = (int16_t)frameDims.bpp;
 	m_state->m_strfData.m_width    = frameDims.w;
 	m_state->m_strfData.m_height   = frameDims.h;
-#endif // 0
 
-	TempImplFileHeader hdr = {kTempImplMagic, m_frameDims, m_frameCount, 0};
-
-	if (!m_state->write(&hdr)) {
-		Close();
-		return false;
-	}
+#endif // USE_TEMP_IMPL_FORMAT
 
 	m_frameDims = frameDims;
+
+	result = result && m_state->initEncoder(frameDims);
+
+	if (!result) {
+		Close();
+		remove(path.c_str());
+		return false;
+	}
 
 	return true;
 }
 
 bool LagsFile::ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster) {
-	assert(m_state->m_frameOffsets.size() == m_frameCount && "Internal frame accounting error!");
+	assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 
 	if (frameIdx >= m_frameCount || !m_state->m_fp) {
 		return false;
 	}
 
-	if (!m_state->seek_frame(frameIdx)) {
-		return false;
+	if (!m_state->m_bDecoderInitialized) {
+		if (!m_state->initDecoder(m_frameDims)) {
+			return false;
+		}
 	}
 
-	if (!m_state->read(pDstRaster, m_frameDims.GetSizeBytes())) {
-		return false;
-	}
+	uint64_t compressedSize = 0;
+	uint8_t* pTempBuf        = m_state->m_endecodeTempBuf.data();
+	bool     result         = true;
 
-	return true;
+	result = result && m_state->seek_frame(frameIdx, &compressedSize);
+	result = result && m_state->read(pTempBuf, compressedSize);
+	result = result && m_state->m_decoder.Decompress(pTempBuf, compressedSize, pDstRaster);
+
+	return result;
 }
 
 bool LagsFile::WriteFrame(const uint8_t* pSrcRaster) {
-	uint64_t frameOffset = 0;
+	FrameLocation loc = {};
 
-	if (!m_state->seek_end() ||
-	    !m_state->write(pSrcRaster, m_frameDims.GetSizeBytes(), &frameOffset)) {
-		return false;
+	uint32_t compressedSize = 0;
+	uint8_t* pTempBuf        = m_state->m_endecodeTempBuf.data();
+	bool     result         = true;
+
+	result = result && m_state->seek_end();
+	result = result && m_state->m_encoder.Compress(pSrcRaster, pTempBuf, &compressedSize);
+	result = result && m_state->write(pTempBuf, compressedSize, &loc.m_frameOffset);
+
+	if (result) {
+		loc.m_frameSize = compressedSize;
+		m_state->m_frameLocations.push_back(loc);
+		m_frameCount++;
+
+		assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 	}
 
-	m_state->m_frameOffsets.push_back(frameOffset);
-	m_frameCount++;
-
-	assert(m_state->m_frameOffsets.size() == m_frameCount && "Internal frame accounting error!");
-
-	return true;
+	return result;
 }
 
 bool LagsFile::Close() {
@@ -447,11 +533,11 @@ bool LagsFile::Close() {
 	if (m_state->m_bOpenedWrite) {
 		TempImplFileHeader hdr = {kTempImplMagic, m_frameDims, m_frameCount, 0};
 
-		assert(m_state->m_frameOffsets.size() == m_frameCount && "Internal frame accounting error!");
+		assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 
 		result = m_state->seek_end();
-		result = result && m_state->write(m_state->m_frameOffsets.data(), m_frameCount,
-		                                  &(hdr.m_frameOffsetsOffset));
+		result = result && m_state->write(m_state->m_frameLocations.data(), m_frameCount,
+		                                  &(hdr.m_frameLocationsOffset));
 		result = result && m_state->seek_set(0);
 		result = result && m_state->write(&hdr);
 	}
