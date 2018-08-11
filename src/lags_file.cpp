@@ -90,7 +90,7 @@ namespace Impl {
 		// (1000000/FPS or 0)
 		uint32_t m_microSecPerFrame = 1000000 / kDefaultFPS;
 
-		// probably ok to be 0.
+		// set to largest compressed frame size times frame rate (is this reasonable?)
 		uint32_t m_maxBytesPerSec = 0;
 
 		// appears to be ignored.
@@ -105,14 +105,15 @@ namespace Impl {
 		// set to 0
 		uint32_t m_initialFrames = 0;
 
-		// set to 1 (video only)
+		// set to 1 (this implementation is video only)
 		uint32_t m_streams = 1;
 
-		// may be ok to set to 0. set to sizeof chunk header + sizeof largest compressed frame in file.
-		uint32_t m_suggestedBufferSizesuggestedBufferSize = 0;
-		uint32_t m_width                                  = 0; // frame width
-		uint32_t m_height                                 = 0; // frame height
-		uint32_t m_reserved[4]                            = {};
+		// suggested i/o buffer size for entire avi file, not specific to video stream. probably ignored.
+		uint32_t m_suggestedBufferSize = 0x10000;
+
+		uint32_t m_width       = 0; // frame width
+		uint32_t m_height      = 0; // frame height
+		uint32_t m_reserved[4] = {};
 	};
 
 	struct Rect {
@@ -123,20 +124,22 @@ namespace Impl {
 	};
 
 	struct STRHChunkData {
-		uint32_t m_fccType             = k4CC_vids;
-		uint32_t m_fccHandler          = k4CC_LAGS;
-		uint32_t m_flags               = 0;
-		uint16_t m_priority            = 0;
-		uint16_t m_language            = 0;
-		uint32_t m_initialFrames       = 0;
-		uint32_t m_scale               = 1;
-		uint32_t m_rate                = kDefaultFPS; /* m_rate / m_scale == samples/second */
-		uint32_t m_start               = 0;
-		uint32_t m_length              = 0; // frame count
-		uint32_t m_suggestedBufferSize = 0;
-		uint32_t m_quality             = 1;
-		uint32_t m_sampleSize          = 0; // can be left at zero - bpp comes from strf chunk
-		Rect     m_frameRect           = {};
+		uint32_t m_fccType       = k4CC_vids;
+		uint32_t m_fccHandler    = k4CC_LAGS;
+		uint32_t m_flags         = 0;           // leave as 0
+		uint16_t m_priority      = 0;           // leave as 0
+		uint16_t m_language      = 0;           // leave as 0
+		uint32_t m_initialFrames = 0;           // leave as 0
+		uint32_t m_scale         = 1;           // leave as 1 - denominator for rate
+		uint32_t m_rate          = kDefaultFPS; // numerator - m_rate / m_scale == samples/second
+		uint32_t m_start         = 0;           // leave as 0
+		uint32_t m_length        = 0;           // set to frame count
+		uint32_t m_suggestedBufferSize =
+		  0; // set to largest single compressed frame size + chunk header overhead
+		uint32_t m_quality =
+		  0; // internally meaningful to specific codec. probably ignored by LAGS codec.
+		uint32_t m_sampleSize = 0; // can be left at zero - bpp comes from strf chunk
+		Rect     m_frameRect  = {};
 	};
 
 	// aka bitmapinfoheader
@@ -144,23 +147,23 @@ namespace Impl {
 		uint32_t m_size          = (uint32_t)sizeof(STRFChunkData);
 		int32_t  m_width         = 0; // frame width
 		int32_t  m_height        = 0; // frame height
-		int16_t  m_planes        = 1;
+		int16_t  m_planes        = 1; // must be 1
 		int16_t  m_bitCount      = 0; // bits per pixel from FrameDimension
-		uint32_t m_compression   = 0; // BI_RGB
-		uint32_t m_sizeImage     = 0;
-		int32_t  m_xPelsPerMeter = 0;
-		int32_t  m_yPelsPerMeter = 0;
-		uint32_t m_clrUsed       = 0;
-		uint32_t m_clrImportant  = 0;
+		uint32_t m_compression   = 0; // used internally by LAGS codec - means RGB(X) encoding (not YUV)
+		uint32_t m_sizeImage     = 0; // image size in bytes
+		int32_t  m_xPelsPerMeter = 0; // leave as 0
+		int32_t  m_yPelsPerMeter = 0; // leave as 0
+		uint32_t m_clrUsed       = 0; // leave as 0
+		uint32_t m_clrImportant  = 0; // leave as 0
 	};
 
 	enum : uint32_t { AVIIF_KEYFRAME = 0x00000010 };
 
 	struct AVIIndexEntry {
-		uint32_t m_ckid        = k4CC_vframe;
-		uint32_t m_flags       = AVIIF_KEYFRAME;
-		uint32_t m_chunkOffset = 0;
-		uint32_t m_chunkLength = 0;
+		uint32_t m_ckid        = k4CC_vframe;    // don't change - only video frames present in file
+		uint32_t m_flags       = AVIIF_KEYFRAME; // don't change - all lags frames are keyframes
+		uint32_t m_chunkOffset = 0; // offset to start of chunk header (not start of chunk data)
+		uint32_t m_chunkLength = 0; // same value as m_sizeBytes member of indexed ChunkData
 	};
 
 	enum : uint64_t {
@@ -541,15 +544,16 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	ListHeader  listSTRL(k4CC_strl);
 	ChunkHeader chunkSTRH(k4CC_strh);
 
-	m_state->m_strhData.m_frameRect.right  = frameDims.w;
-	m_state->m_strhData.m_frameRect.bottom = frameDims.h;
-	m_state->m_strhData.m_sampleSize       = frameDims.GetBytesPerPixel();
+	//m_state->m_strhData.m_frameRect.right  = frameDims.w;
+	//m_state->m_strhData.m_frameRect.bottom = frameDims.h;
+	//m_state->m_strhData.m_sampleSize       = frameDims.GetBytesPerPixel();
 
 	ChunkHeader chunkSTRF(k4CC_strf);
 
-	m_state->m_strfData.m_bitCount = (int16_t)frameDims.bpp;
-	m_state->m_strfData.m_width    = frameDims.w;
-	m_state->m_strfData.m_height   = frameDims.h;
+	m_state->m_strfData.m_bitCount  = (int16_t)frameDims.bpp;
+	m_state->m_strfData.m_width     = frameDims.w;
+	m_state->m_strfData.m_height    = frameDims.h;
+	m_state->m_strfData.m_sizeImage = frameDims.GetSizeBytes();
 
 	m_state->m_moviList             = ListHeader(k4CC_movi);
 	m_state->m_moviList.m_sizeBytes = sizeof(uint32_t);
@@ -620,6 +624,10 @@ bool LagsFile::WriteFrame(const uint8_t* pSrcRaster) {
 	chunkVFrame.m_sizeBytes = compressedSize;
 
 	const uint32_t paddedSize = chunkVFrame.getPaddedDataSize();
+
+	for (uint32_t p = compressedSize; p < paddedSize; p++) {
+		pTempBuf[p] = 0;
+	}
 
 	result = result && m_state->write(&chunkVFrame);
 	result = result && m_state->write(pTempBuf, paddedSize, &loc.m_frameOffset);
@@ -700,11 +708,10 @@ bool LagsFile::Close() {
 			riffAVI.m_sizeBytes = (uint32_t)((indexOffset + chunkIndex.m_sizeBytes) - kListHeaderSize);
 		}
 
-		m_state->m_avihData.m_totalFrames = m_frameCount;
-		m_state->m_avihData.m_suggestedBufferSizesuggestedBufferSize =
-		  sizeof(ChunkHeader) + maxFrameSize;
-		m_state->m_avihData.m_maxBytesPerSec = maxFrameSize * kDefaultFPS;
-		m_state->m_strhData.m_length         = m_frameCount;
+		m_state->m_avihData.m_totalFrames         = m_frameCount;
+		m_state->m_strhData.m_suggestedBufferSize = sizeof(ChunkHeader) + maxFrameSize;
+		m_state->m_avihData.m_maxBytesPerSec      = maxFrameSize * kDefaultFPS;
+		m_state->m_strhData.m_length              = m_frameCount;
 
 		result = result && m_state->seek_set(0);
 		result = result && m_state->write(&riffAVI);
