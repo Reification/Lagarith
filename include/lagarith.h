@@ -94,6 +94,7 @@ private:
 };
 
 /*! basic video-only file i/o
+ * initial testing shows size is ~25% smaller than sum separate PNGs saved via stb_image
  */
 
 namespace Impl {
@@ -105,24 +106,34 @@ public:
 	LagsFile();
 	~LagsFile();
 
+	//! open a lags file for reading
 	bool OpenRead(const std::string& path);
+
+	//! open a lags file for writing
+	bool OpenWrite(const std::string& path, const FrameDimensions& frameDims);
+
+	//! read a specified video frame. valid on files opened with either OpenRead() or OpenWrite()
 	bool ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster);
 
-	bool OpenWrite(const std::string& path, const FrameDimensions& frameDims);
+	//! write a video frame. only valid on files opened with OpenWrite()
 	bool WriteFrame(const uint8_t* pSrcRaster);
 
+	//! close a file that has been opened for either reading or writing. resets all state.
 	bool Close();
 
+	//! is this file open for either reading or writing
 	bool IsOpen() const { return m_frameDims.IsValid(); }
-	bool IsWriteMode() const;	
+
+	//! can frames be written to this file
+	bool IsWriteMode() const;
 
 	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
 	uint32_t               GetFrameCount() const { return m_frameCount; }
 
 private:
 	std::unique_ptr<Impl::LagsFileState> m_state;
-	FrameDimensions                m_frameDims;
-	uint32_t                       m_frameCount = 0;
+	FrameDimensions                      m_frameDims;
+	uint32_t                             m_frameCount = 0;
 };
 
 
