@@ -182,7 +182,8 @@ public:
 				return false;
 			}
 
-			const Lagarith::FrameDimensions frameDims = {tempFrame.m_width, tempFrame.m_height,
+			const Lagarith::FrameDimensions frameDims = {(uint16_t)tempFrame.m_width,
+			                                             (uint16_t)tempFrame.m_height,
 			                                             (Lagarith::BitsPerPixel)(channels * 8)};
 			if (!i) {
 				Initialize(frameDims);
