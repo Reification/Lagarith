@@ -31,12 +31,21 @@ struct Raster {
 
 	bool Load(const char* path, uint32_t channels) {
 		Free();
+
+		stbi_set_flip_vertically_on_load(true);
 		m_pBits = stbi_load(path, (int*)&m_width, (int*)&m_height, (int*)&m_channels, (int)channels);
+		stbi_set_flip_vertically_on_load(false);
+
 		if (m_pBits) {
 			m_channels = channels;
 			m_bOwned   = true;
 		}
-		return !!m_pBits;
+
+		if (m_pBits) {
+			return true;
+		}
+
+		return false;
 	}
 
 	bool Save(const char* path) {
@@ -44,8 +53,12 @@ struct Raster {
 			return false;
 		}
 
-		if (stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits,
-		                   (int)(m_width * m_channels))) {
+		stbi_flip_vertically_on_write(true);
+		const bool result = stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits,
+		                                   (int)(m_width * m_channels));
+		stbi_flip_vertically_on_write(false);
+
+		if (result) {
 			return true;
 		}
 

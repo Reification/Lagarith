@@ -5,6 +5,12 @@ namespace Lagarith {
 
 #define USE_TEMP_IMPL_FORMAT 0
 
+// for some reason these members appear to be missing in STRH
+// structures of working AVI files examined with riffpad.
+#define USE_RECT_RIGHT_BOTTOM 0
+
+#define PAD_HEADER_WITH_JUNK_CHUNK 0
+
 namespace Impl {
 	inline static constexpr uint32_t genFourCC(const char* const code) noexcept {
 		return static_cast<uint32_t>(code[0]) | (static_cast<uint32_t>(code[0] ? code[1] : 0) << 8) |
@@ -119,13 +125,15 @@ namespace Impl {
 	struct Rect {
 		int32_t left;
 		int32_t top;
+#if USE_RECT_RIGHT_BOTTOM
 		int32_t right;
 		int32_t bottom;
+#endif
 	};
 
 	struct STRHChunkData {
 		uint32_t m_fccType       = k4CC_vids;
-		uint32_t m_fccHandler    = k4CC_LAGS;
+		uint32_t m_fccHandler    = 0;           // leave as 0
 		uint32_t m_flags         = 0;           // leave as 0
 		uint16_t m_priority      = 0;           // leave as 0
 		uint16_t m_language      = 0;           // leave as 0
@@ -144,12 +152,13 @@ namespace Impl {
 
 	// aka bitmapinfoheader
 	struct STRFChunkData {
-		uint32_t m_size          = (uint32_t)sizeof(STRFChunkData);
-		int32_t  m_width         = 0; // frame width
-		int32_t  m_height        = 0; // frame height
-		int16_t  m_planes        = 1; // must be 1
-		int16_t  m_bitCount      = 0; // bits per pixel from FrameDimension
-		uint32_t m_compression   = 0; // used internally by LAGS codec - means RGB(X) encoding (not YUV)
+		uint32_t m_size     = (uint32_t)sizeof(STRFChunkData);
+		int32_t  m_width    = 0; // frame width
+		int32_t  m_height   = 0; // frame height
+		int16_t  m_planes   = 1; // must be 1
+		int16_t  m_bitCount = 0; // bits per pixel from FrameDimension
+		uint32_t m_compression =
+		  k4CC_LAGS;                  // used internally by LAGS codec - means RGB(X) encoding (not YUV)
 		uint32_t m_sizeImage     = 0; // image size in bytes
 		int32_t  m_xPelsPerMeter = 0; // leave as 0
 		int32_t  m_yPelsPerMeter = 0; // leave as 0
@@ -171,8 +180,8 @@ namespace Impl {
 		kChunkSize_strh = sizeof(ChunkHeader) + sizeof(STRHChunkData),
 		kChunkSize_strf = sizeof(ChunkHeader) + sizeof(STRFChunkData),
 
-		kListDataSize_strl = kChunkSize_strh + kChunkSize_strf,
-		kListDataSize_hdrl = sizeof(kChunkSize_avih) + sizeof(ListHeader) + kListDataSize_strl
+		kListDataSize_strl = sizeof(uint32_t) + kChunkSize_strh + kChunkSize_strf,
+		kListDataSize_hdrl = sizeof(uint32_t) + kChunkSize_avih + kListHeaderSize + kListDataSize_strl
 	};
 
 	ChunkHeader::ChunkHeader(uint32_t fourCC) : m_fourCC(fourCC), m_sizeBytes(0) {
@@ -189,8 +198,8 @@ namespace Impl {
 		switch (fourCC) {
 		case k4CC_AVI:
 		case k4CC_AVIX: m_listCC = k4CC_RIFF; break;
-		case k4CC_hdrl: m_sizeBytes = (uint32_t)(sizeof(uint32_t) + kListDataSize_hdrl); break;
-		case k4CC_strl: m_sizeBytes = (uint32_t)(sizeof(uint32_t) + kListDataSize_strl); break;
+		case k4CC_hdrl: m_sizeBytes = kListDataSize_hdrl; break;
+		case k4CC_strl: m_sizeBytes = kListDataSize_strl; break;
 		}
 	}
 
@@ -438,6 +447,7 @@ bool LagsFile::OpenRead(const std::string& path) {
 	ListHeader  listSTRL;
 	ChunkHeader chunkSTRH;
 	ChunkHeader chunkSTRF;
+	ChunkHeader chunkJUNK;
 	ChunkHeader chunkIndex;
 
 	result = m_state->read(&riffAVI) && riffAVI.m_listCC == k4CC_RIFF && riffAVI.m_fourCC == k4CC_AVI;
@@ -451,13 +461,18 @@ bool LagsFile::OpenRead(const std::string& path) {
 	         listSTRL.m_fourCC == k4CC_strl;
 	result = result && m_state->read(&chunkSTRH) && chunkSTRH.m_fourCC == k4CC_strh &&
 	         chunkSTRH.m_sizeBytes == sizeof(STRHChunkData);
-	result = result && m_state->read(&(m_state->m_strhData)) &&
-	         m_state->m_strhData.m_fccHandler == k4CC_LAGS;
+	result = result && m_state->read(&(m_state->m_strhData)) && m_state->m_strhData.m_fccHandler == 0;
 	result = result && m_state->read(&chunkSTRF) && chunkSTRF.m_fourCC == k4CC_strf &&
 	         chunkSTRF.m_sizeBytes == sizeof(STRFChunkData);
 	result = result && m_state->read(&(m_state->m_strfData)) &&
-	         m_state->m_strfData.m_compression == 0 &&
+	         m_state->m_strfData.m_compression == k4CC_LAGS &&
 	         (m_state->m_strfData.m_bitCount == 24 || m_state->m_strfData.m_bitCount == 32);
+
+#	if PAD_HEADER_WITH_JUNK_CHUNK
+	result = result && m_state->read(&chunkJUNK) && chunkJUNK.m_fourCC == k4CC_JUNK;
+	result = result && m_state->seek_cur(chunkJUNK.m_sizeBytes);
+#	endif // PAD_HEADER_WITH_JUNK_CHUNK
+
 	result = result && m_state->read(&(m_state->m_moviList));
 
 	if (result) {
@@ -544,8 +559,10 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	ListHeader  listSTRL(k4CC_strl);
 	ChunkHeader chunkSTRH(k4CC_strh);
 
-	//m_state->m_strhData.m_frameRect.right  = frameDims.w;
-	//m_state->m_strhData.m_frameRect.bottom = frameDims.h;
+#	if USE_RECT_RIGHT_BOTTOM
+	m_state->m_strhData.m_frameRect.right  = frameDims.w;
+	m_state->m_strhData.m_frameRect.bottom = frameDims.h;
+#	endif
 	//m_state->m_strhData.m_sampleSize       = frameDims.GetBytesPerPixel();
 
 	ChunkHeader chunkSTRF(k4CC_strf);
@@ -567,6 +584,22 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	result = result && m_state->write(&(m_state->m_strhData), 1, &(m_state->m_strhOffset));
 	result = result && m_state->write(&chunkSTRF);
 	result = result && m_state->write(&(m_state->m_strfData));
+
+	// pad out entire header area from start of file to start of movie to 2KB
+	// no idea why this is necessary but apparently readers want to parse
+	// by loading a 2K chunk and choke if they don't have that much before frame data.
+#	if PAD_HEADER_WITH_JUNK_CHUNK
+	if (result) {
+		ChunkHeader chunkJUNK(k4CC_JUNK);
+		chunkJUNK.m_sizeBytes =
+		  (uint32_t)(2048ull - (sizeof(ChunkHeader) + sizeof(ListHeader) + _ftelli64(m_state->m_fp)));
+		std::vector<uint8_t> padding;
+		padding.resize(chunkJUNK.m_sizeBytes);
+		result = result && m_state->write(&chunkJUNK);
+		result = result && m_state->write(padding.data(), chunkJUNK.m_sizeBytes);
+	}
+#endif // PAD_HEADER_WITH_JUNK_CHUNK
+
 	result = result && m_state->write(&(m_state->m_moviList), 1, &(m_state->m_moviOffset));
 
 #endif // USE_TEMP_IMPL_FORMAT
