@@ -9,9 +9,10 @@
 
 #define DUMP_INTERMED_DATA 0
 
-// bug in original lagarith - an odd diagonal line of bad pixels appears - likely due to irregular image width.
+// bug in original lagarith - an odd diagonal line of bad pixels appears - due to non-multiple of 4 image width.
 // does not occur in 32 bit RGB. fortunately we only need 32 bit RGB.
-#define TEST_RGB24_FORMAT 0
+#define TEST_RGB24_FORMAT 1
+#define TEST_RGB32_FORMAT 1
 
 //
 // simple wrapper on stb image load and save.
@@ -32,13 +33,15 @@ struct Raster {
 	bool Load(const char* path, uint32_t channels) {
 		Free();
 
-		stbi_set_flip_vertically_on_load(true);
+		//stbi_set_flip_vertically_on_load(true);
 		m_pBits = stbi_load(path, (int*)&m_width, (int*)&m_height, (int*)&m_channels, (int)channels);
-		stbi_set_flip_vertically_on_load(false);
+		//stbi_set_flip_vertically_on_load(false);
 
 		if (m_pBits) {
 			m_channels = channels;
 			m_bOwned   = true;
+
+			swizzleFlip();
 		}
 
 		if (m_pBits) {
@@ -53,10 +56,12 @@ struct Raster {
 			return false;
 		}
 
-		stbi_flip_vertically_on_write(true);
+		//stbi_flip_vertically_on_write(true);
+		swizzleFlip();
 		const bool result = stbi_write_png(path, (int)m_width, (int)m_height, (int)m_channels, m_pBits,
 		                                   (int)(m_width * m_channels));
-		stbi_flip_vertically_on_write(false);
+		swizzleFlip();
+		//stbi_flip_vertically_on_write(false);
 
 		if (result) {
 			return true;
@@ -95,6 +100,64 @@ struct Raster {
 		}
 		m_bAlloced = m_bOwned = false;
 		m_width = m_height = m_channels = 0;
+	}
+
+private:
+	void swizzleFlip() {
+		switch (m_channels) {
+		case 3: swizzleFlip3(); break;
+		case 4: swizzleFlip4(); break;
+		default: assert(false && "Not Implemented!"); break;
+		}
+	}
+
+
+	static inline uint32_t swizzle4(uint32_t p) {
+		//0xAABBGGRR <-> 0xAARRGGBB
+		return (p & 0xff00ff00) | ((p & 0x00ff0000) >> 16) | ((p & 0x000000ff) << 16);
+	}
+
+	static inline uint32_t load_u32_3(const uint8_t* p) {
+		return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
+	}
+
+	static inline void store_u32_3(uint8_t* pd, uint32_t ps) {
+		pd[0] = (uint8_t)ps;
+		pd[1] = (uint8_t)(ps >> 8);
+		pd[2] = (uint8_t)(ps >> 16);
+	}
+
+	void swizzleFlip3() {
+		const uint32_t pitch  = m_width * 3;
+		uint8_t*       pLoRow = (uint8_t*)m_pBits;
+		uint8_t*       pHiRow = pLoRow + (pitch * (m_height - 1));
+		uint32_t       tpix0 = 0, tpix1 = 0;
+
+		for (; pLoRow < pHiRow; pLoRow += pitch, pHiRow -= pitch) {
+			for (uint32_t x = 0; x < pitch; x += 3) {
+				tpix0 = swizzle4(load_u32_3(pLoRow + x));
+				tpix1 = swizzle4(load_u32_3(pHiRow + x));
+
+				store_u32_3(pLoRow + x, tpix1);
+				store_u32_3(pHiRow + x, tpix0);
+			}
+		}
+	}
+
+	void swizzleFlip4() {
+		uint32_t* pLoRow = (uint32_t*)m_pBits;
+		uint32_t* pHiRow = pLoRow + (m_width * (m_height - 1));
+		uint32_t  tpix0 = 0, tpix1 = 0;
+
+		for (; pLoRow < pHiRow; pLoRow += m_width, pHiRow -= m_width) {
+			for (uint32_t x = 0, w = m_width; x < w; ++x) {
+				tpix0 = swizzle4(pLoRow[x]);
+				tpix1 = swizzle4(pHiRow[x]);
+
+				pLoRow[x] = tpix1;
+				pHiRow[x] = tpix0;
+			}
+		}
 	}
 };
 
@@ -165,7 +228,7 @@ public:
 	uint32_t GetFrameSizeBytes() const { return GetFrameDimensions().GetSizeBytes(); }
 };
 
-bool testEncodeDecode(uint32_t channelCount) {
+static bool testEncodeDecode(uint32_t channelCount) {
 	const char*    fmtName = (channelCount == 3) ? "rgb24" : "rgb32";
 	bool           result  = false;
 	RasterSequence srcFrames;
@@ -328,33 +391,26 @@ bool testEncodeDecode(uint32_t channelCount) {
 	return true;
 }
 
-#if TEST_RGB24_FORMAT
-DECLARE_TEST(testEncodeDecodeRGB) {
-	return testEncodeDecode(3);
-}
-#endif // TEST_RGB24_FORMAT
+static bool testVideoSequenceAvi(uint32_t channelCount) {
+	const char* pLagsPath = (channelCount == 3) ? "test_data/lags_save_rgb24_test.avi"
+	                                            : "test_data/lags_save_rgb32_test.avi";
 
-DECLARE_TEST(testEncodeDecodeRGBX) {
-	return testEncodeDecode(4);
-}
-
-DECLARE_TEST(testVideoSequenceAVI) {
 	RasterSequence seq0;
 
-	if (!seq0.Load(4, "test_data/frame_%02d.png", 0, 4)) {
+	if (!seq0.Load(channelCount, "test_data/frame_%02d.png", 0, 4)) {
 		return false;
 	}
 
 	const Lagarith::FrameDimensions d0 = seq0.GetFrameDimensions();
 
-	if (!seq0.SaveLagsFile("test_data/lags_save_test.avi")) {
+	if (!seq0.SaveLagsFile(pLagsPath)) {
 		fprintf(stderr, "failed saving lags avi file.\n");
 		return false;
 	}
 
 	RasterSequence seq1;
 
-	if (!seq1.LoadLagsFile("test_data/lags_save_test.avi")) {
+	if (!seq1.LoadLagsFile(pLagsPath)) {
 		fprintf(stderr, "failed loading lags avi file.\n");
 		return false;
 	}
@@ -383,3 +439,24 @@ DECLARE_TEST(testVideoSequenceAVI) {
 
 	return true;
 }
+
+#if TEST_RGB24_FORMAT
+DECLARE_TEST(testEncodeDecodeRGB) {
+	return testEncodeDecode(3);
+}
+
+DECLARE_TEST(testVideoSequenceAviRGB) {
+	return testVideoSequenceAvi(3);
+}
+
+#endif // TEST_RGB24_FORMAT
+
+#if TEST_RGB32_FORMAT
+DECLARE_TEST(testEncodeDecodeRGBX) {
+	return testEncodeDecode(4);
+}
+
+DECLARE_TEST(testVideoSequenceAviRGBX) {
+	return testVideoSequenceAvi(4);
+}
+#endif // TEST_RGB32_FORMAT

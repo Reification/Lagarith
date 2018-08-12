@@ -1,12 +1,14 @@
 #pragma once
 
 #include <stdlib.h>
+#include <stdio.h>
 #include <memory.h>
+
 #include <cassert>
 #include <cinttypes>
 #include <memory>
 #include <vector>
-#include <stdio.h>
+#include <algorithm>
 
 #if defined(_WINDOWS)
 #	if !defined(_WIN64)
@@ -34,6 +36,8 @@
 #	define LAGARITH_MULTITHREAD_SUPPORT 1
 #	define WIN32_LEAN_AND_MEAN
 #	include <windows.h>
+# undef min
+# undef max
 #else
 #	define LAGARITH_MULTITHREAD_SUPPORT 0
 #	include <unistd.h>

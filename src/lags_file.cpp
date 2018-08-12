@@ -3,12 +3,7 @@
 
 namespace Lagarith {
 
-#define USE_TEMP_IMPL_FORMAT 0
-
-// for some reason these members appear to be missing in STRH
-// structures of working AVI files examined with riffpad.
-#define USE_RECT_RIGHT_BOTTOM 0
-
+// if true, pad after end of header list to start of 'movi' list at 2KB offset
 #define PAD_HEADER_WITH_JUNK_CHUNK 0
 
 namespace Impl {
@@ -114,56 +109,54 @@ namespace Impl {
 		// set to 1 (this implementation is video only)
 		uint32_t m_streams = 1;
 
-		// suggested i/o buffer size for entire avi file, not specific to video stream. probably ignored.
-		uint32_t m_suggestedBufferSize = 0x10000;
+		// suggested i/o buffer size - making it same as suggested buffer size in strh
+		uint32_t m_suggestedBufferSize = 0;
 
 		uint32_t m_width       = 0; // frame width
 		uint32_t m_height      = 0; // frame height
 		uint32_t m_reserved[4] = {};
 	};
 
+	// the docs say RECT - normally a windows struct with 4 LONG members.
+	// examining AVI files with RIFFPad shows that they are actually WORD members.
 	struct Rect {
-		int32_t left;
-		int32_t top;
-#if USE_RECT_RIGHT_BOTTOM
-		int32_t right;
-		int32_t bottom;
-#endif
+		uint16_t left;
+		uint16_t top;
+		uint16_t right;
+		uint16_t bottom;
 	};
 
 	struct STRHChunkData {
-		uint32_t m_fccType       = k4CC_vids;
-		uint32_t m_fccHandler    = 0;           // leave as 0
-		uint32_t m_flags         = 0;           // leave as 0
-		uint16_t m_priority      = 0;           // leave as 0
-		uint16_t m_language      = 0;           // leave as 0
-		uint32_t m_initialFrames = 0;           // leave as 0
-		uint32_t m_scale         = 1;           // leave as 1 - denominator for rate
-		uint32_t m_rate          = kDefaultFPS; // numerator - m_rate / m_scale == samples/second
-		uint32_t m_start         = 0;           // leave as 0
-		uint32_t m_length        = 0;           // set to frame count
-		uint32_t m_suggestedBufferSize =
-		  0; // set to largest single compressed frame size + chunk header overhead
-		uint32_t m_quality =
-		  0; // internally meaningful to specific codec. probably ignored by LAGS codec.
-		uint32_t m_sampleSize = 0; // can be left at zero - bpp comes from strf chunk
-		Rect     m_frameRect  = {};
+		uint32_t m_fccType             = k4CC_vids;
+		uint32_t m_fccHandler = k4CC_LAGS;
+		//0;                                            // leave as 0
+		uint32_t m_flags               = 0;           // leave as 0
+		uint16_t m_priority            = 0;           // leave as 0
+		uint16_t m_language            = 0;           // leave as 0
+		uint32_t m_initialFrames       = 0;           // leave as 0
+		uint32_t m_scale               = 1;           // leave as 1 - denominator for rate
+		uint32_t m_rate                = kDefaultFPS; // numerator - m_rate / m_scale == samples/second
+		uint32_t m_start               = 0;           // leave as 0
+		uint32_t m_length              = 0;           // set to frame count
+		uint32_t m_suggestedBufferSize = 0;           // set to largest single compressed frame size
+		uint32_t m_quality             = 0;           // not used by LAGS codec.
+		uint32_t m_sampleSize          = 0;           // seems to be ignored by lags and other codecs
+		Rect     m_frameRect           = {};
 	};
 
 	// aka bitmapinfoheader
 	struct STRFChunkData {
-		uint32_t m_size     = (uint32_t)sizeof(STRFChunkData);
-		int32_t  m_width    = 0; // frame width
-		int32_t  m_height   = 0; // frame height
-		int16_t  m_planes   = 1; // must be 1
-		int16_t  m_bitCount = 0; // bits per pixel from FrameDimension
-		uint32_t m_compression =
-		  k4CC_LAGS;                  // used internally by LAGS codec - means RGB(X) encoding (not YUV)
-		uint32_t m_sizeImage     = 0; // image size in bytes
-		int32_t  m_xPelsPerMeter = 0; // leave as 0
-		int32_t  m_yPelsPerMeter = 0; // leave as 0
-		uint32_t m_clrUsed       = 0; // leave as 0
-		uint32_t m_clrImportant  = 0; // leave as 0
+		uint32_t m_size          = (uint32_t)sizeof(STRFChunkData);
+		int32_t  m_width         = 0;         // frame width
+		int32_t  m_height        = 0;         // frame height
+		int16_t  m_planes        = 1;         // must be 1
+		int16_t  m_bitCount      = 0;         // bits per pixel from FrameDimension
+		uint32_t m_compression   = k4CC_LAGS; // 4cc of codec
+		uint32_t m_sizeImage     = 0;         // image size in bytes
+		int32_t  m_xPelsPerMeter = 0;         // leave as 0
+		int32_t  m_yPelsPerMeter = 0;         // leave as 0
+		uint32_t m_clrUsed       = 0;         // leave as 0
+		uint32_t m_clrImportant  = 0;         // leave as 0
 	};
 
 	enum : uint32_t { AVIIF_KEYFRAME = 0x00000010 };
@@ -390,21 +383,6 @@ namespace Impl {
 		bool m_bDecoderInitialized = false;
 		bool m_bEncoderInitialized = false;
 	};
-
-#if USE_TEMP_IMPL_FORMAT
-	struct TempImplOffsets {
-		FrameLocation m_offsets[1];
-	};
-
-	enum : uint32_t { kTempImplMagic = 0x1a651a65 };
-
-	struct TempImplFileHeader {
-		uint32_t        m_magic;
-		FrameDimensions m_frameDims;
-		uint32_t        m_frameCount           = 0;
-		uint64_t        m_frameLocationsOffset = 0;
-	};
-#endif // USE_TEMP_IMPL_FORMAT
 }
 
 using namespace Impl;
@@ -423,23 +401,6 @@ bool LagsFile::OpenRead(const std::string& path) {
 	}
 
 	bool result = false;
-
-#if USE_TEMP_IMPL_FORMAT
-	TempImplFileHeader hdr;
-
-	result = m_state->read(&hdr);
-
-	result = result && (hdr.m_magic == kTempImplMagic);
-
-	if (result) {
-		m_frameDims  = hdr.m_frameDims;
-		m_frameCount = hdr.m_frameCount;
-		m_state->m_frameLocations.resize(hdr.m_frameCount);
-	}
-
-	result = result && m_state->seek_set(hdr.m_frameLocationsOffset);
-	result = result && m_state->read(m_state->m_frameLocations.data(), m_frameCount);
-#else
 
 	ListHeader  riffAVI;
 	ListHeader  listHDRL;
@@ -461,7 +422,7 @@ bool LagsFile::OpenRead(const std::string& path) {
 	         listSTRL.m_fourCC == k4CC_strl;
 	result = result && m_state->read(&chunkSTRH) && chunkSTRH.m_fourCC == k4CC_strh &&
 	         chunkSTRH.m_sizeBytes == sizeof(STRHChunkData);
-	result = result && m_state->read(&(m_state->m_strhData)) && m_state->m_strhData.m_fccHandler == 0;
+	result = result && m_state->read(&(m_state->m_strhData)) && m_state->m_strhData.m_fccHandler == k4CC_LAGS;
 	result = result && m_state->read(&chunkSTRF) && chunkSTRF.m_fourCC == k4CC_strf &&
 	         chunkSTRF.m_sizeBytes == sizeof(STRFChunkData);
 	result = result && m_state->read(&(m_state->m_strfData)) &&
@@ -517,8 +478,6 @@ bool LagsFile::OpenRead(const std::string& path) {
 		}
 	}
 
-#endif // USE_TEMP_IMPL_FORMAT
-
 	result = result && m_state->initDecoder(m_frameDims);
 
 	if (!result) {
@@ -539,14 +498,6 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 
 	m_frameDims = frameDims;
 
-#if USE_TEMP_IMPL_FORMAT
-
-	TempImplFileHeader hdr = {kTempImplMagic, m_frameDims, m_frameCount, 0};
-
-	result = m_state->write(&hdr);
-
-#else // USE_TEMP_IMPL_FORMAT
-
 	ListHeader  riffAVI(k4CC_AVI);
 	ListHeader  listHDRL(k4CC_hdrl);
 	ChunkHeader chunkAVIH(k4CC_avih);
@@ -559,10 +510,8 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	ListHeader  listSTRL(k4CC_strl);
 	ChunkHeader chunkSTRH(k4CC_strh);
 
-#	if USE_RECT_RIGHT_BOTTOM
 	m_state->m_strhData.m_frameRect.right  = frameDims.w;
 	m_state->m_strhData.m_frameRect.bottom = frameDims.h;
-#	endif
 	//m_state->m_strhData.m_sampleSize       = frameDims.GetBytesPerPixel();
 
 	ChunkHeader chunkSTRF(k4CC_strf);
@@ -598,11 +547,9 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 		result = result && m_state->write(&chunkJUNK);
 		result = result && m_state->write(padding.data(), chunkJUNK.m_sizeBytes);
 	}
-#endif // PAD_HEADER_WITH_JUNK_CHUNK
+#	endif // PAD_HEADER_WITH_JUNK_CHUNK
 
 	result = result && m_state->write(&(m_state->m_moviList), 1, &(m_state->m_moviOffset));
-
-#endif // USE_TEMP_IMPL_FORMAT
 
 	result = result && m_state->initEncoder(frameDims);
 
@@ -649,10 +596,6 @@ bool LagsFile::WriteFrame(const uint8_t* pSrcRaster) {
 	result = result && m_state->seek_end();
 	result = result && m_state->m_encoder.Compress(pSrcRaster, pTempBuf, &compressedSize);
 
-#if USE_TEMP_IMPL_FORMAT
-	result = result && m_state->write(pTempBuf, compressedSize, &loc.m_frameOffset);
-#else
-
 	ChunkHeader chunkVFrame(k4CC_vframe);
 	chunkVFrame.m_sizeBytes = compressedSize;
 
@@ -666,8 +609,6 @@ bool LagsFile::WriteFrame(const uint8_t* pSrcRaster) {
 	result = result && m_state->write(pTempBuf, paddedSize, &loc.m_frameOffset);
 
 	m_state->m_moviList.m_sizeBytes += (sizeof(chunkVFrame) + paddedSize);
-
-#endif // USE_TEMP_IMPL_FORMAT
 
 	if (result) {
 		loc.m_frameSize = compressedSize;
@@ -688,17 +629,6 @@ bool LagsFile::Close() {
 	bool result = true;
 
 	if (m_state->m_bOpenedWrite) {
-#if USE_TEMP_IMPL_FORMAT
-		TempImplFileHeader hdr = {kTempImplMagic, m_frameDims, m_frameCount, 0};
-
-		assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
-
-		result = m_state->seek_end();
-		result = result && m_state->write(m_state->m_frameLocations.data(), m_frameCount,
-		                                  &(hdr.m_frameLocationsOffset));
-		result = result && m_state->seek_set(0);
-		result = result && m_state->write(&hdr);
-#else
 		uint32_t maxFrameSize = 0;
 
 		result = result && m_state->seek_end();
@@ -741,10 +671,16 @@ bool LagsFile::Close() {
 			riffAVI.m_sizeBytes = (uint32_t)((indexOffset + chunkIndex.m_sizeBytes) - kListHeaderSize);
 		}
 
+		// size of all encoded video data - movie list size minus overhead of list 4cc and chunk headers.
+		const uint32_t totalFrameDataSize =
+		  m_state->m_moviList.m_sizeBytes - (sizeof(uint32_t) + (m_frameCount * sizeof(ChunkHeader)));
+
 		m_state->m_avihData.m_totalFrames         = m_frameCount;
-		m_state->m_strhData.m_suggestedBufferSize = sizeof(ChunkHeader) + maxFrameSize;
-		m_state->m_avihData.m_maxBytesPerSec      = maxFrameSize * kDefaultFPS;
-		m_state->m_strhData.m_length              = m_frameCount;
+		m_state->m_avihData.m_suggestedBufferSize = maxFrameSize;
+		m_state->m_strhData.m_suggestedBufferSize = maxFrameSize;
+		m_state->m_avihData.m_maxBytesPerSec =
+		  std::min((uint32_t)(maxFrameSize * kDefaultFPS), totalFrameDataSize);
+		m_state->m_strhData.m_length = m_frameCount;
 
 		result = result && m_state->seek_set(0);
 		result = result && m_state->write(&riffAVI);
@@ -757,8 +693,6 @@ bool LagsFile::Close() {
 
 		result = result && m_state->seek_set(m_state->m_moviOffset);
 		result = result && m_state->write(&(m_state->m_moviList));
-
-#endif // USE_TEMP_IMPL_FORMAT
 	}
 
 	m_frameDims  = FrameDimensions();
