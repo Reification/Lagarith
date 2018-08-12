@@ -117,11 +117,11 @@ private:
 		return (p & 0xff00ff00) | ((p & 0x00ff0000) >> 16) | ((p & 0x000000ff) << 16);
 	}
 
-	static inline uint32_t load_u32_3(const uint8_t* p) {
+	static inline uint32_t load_u32_u8x3(const uint8_t* p) {
 		return (uint32_t)p[0] | ((uint32_t)p[1] << 8) | ((uint32_t)p[2] << 16);
 	}
 
-	static inline void store_u32_3(uint8_t* pd, uint32_t ps) {
+	static inline void store_u32_u8x3(uint8_t* pd, uint32_t ps) {
 		pd[0] = (uint8_t)ps;
 		pd[1] = (uint8_t)(ps >> 8);
 		pd[2] = (uint8_t)(ps >> 16);
@@ -135,11 +135,11 @@ private:
 
 		for (; pLoRow < pHiRow; pLoRow += pitch, pHiRow -= pitch) {
 			for (uint32_t x = 0; x < pitch; x += 3) {
-				tpix0 = swizzle4(load_u32_3(pLoRow + x));
-				tpix1 = swizzle4(load_u32_3(pHiRow + x));
+				tpix0 = swizzle4(load_u32_u8x3(pLoRow + x));
+				tpix1 = swizzle4(load_u32_u8x3(pHiRow + x));
 
-				store_u32_3(pLoRow + x, tpix1);
-				store_u32_3(pHiRow + x, tpix0);
+				store_u32_u8x3(pLoRow + x, tpix1);
+				store_u32_u8x3(pHiRow + x, tpix0);
 			}
 		}
 	}
