@@ -1,28 +1,10 @@
 #include "pch.h"
 #include "TestRunner.hpp"
 #include <thread>
-//#include <dlfcn.h>
 #include <stdio.h>
-//#include <chrono>
-//#include <ctime>
-
 #include <string>
-//#include <fstream>
-//#include <streambuf>
 
 #include "test/lagarith_testing.h"
-
-static std::string getDateTime() {
-	time_t     rawtime;
-	struct tm* timeinfo;
-	char       buffer[80];
-
-	time(&rawtime);
-	timeinfo = localtime(&rawtime);
-
-	strftime(buffer, sizeof(buffer), "%Y-%m-%d %I:%M:%S", timeinfo);
-	return std::string(buffer);
-}
 
 static void runTests(const std::string& packageName) {
 	// TODO: query programmatically!
@@ -43,9 +25,7 @@ static void runTests(const std::string& packageName) {
 	freopen(testOutLog, "w", stdout);
 	freopen(testErrLog, "w", stderr);
 
-	std::string curTimeStr = getDateTime();
 	printf("running tests from %s\n", testWorkingDir.c_str());
-	printf("tests starting: %s\n", curTimeStr.c_str());
 
 	try {
 		LagarithTesting::runTests();
