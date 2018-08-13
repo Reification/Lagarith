@@ -34,18 +34,12 @@ namespace Impl {
 		k4CC_LAGS = genFourCC("LAGS")
 	};
 
-	enum : uint32_t { kDataSizePaddingGranularity = 2, kDefaultFPS = 60 };
-
-	inline uint32_t calcPaddedDataSize(uint32_t size) {
-		if (kDataSizePaddingGranularity <= 1) {
-			return size;
-		}
-
-		return ((size / kDataSizePaddingGranularity) + !!(size % kDataSizePaddingGranularity)) *
-		       kDataSizePaddingGranularity;
-	}
+	enum : uint32_t { kDefaultFPS = 60 };
 
 	struct ChunkHeader {
+		//
+		enum : uint32_t { kDataPaddingGranularity = sizeof(uint16_t) };
+
 		uint32_t m_fourCC;
 		uint32_t m_sizeBytes;
 
@@ -53,7 +47,10 @@ namespace Impl {
 
 		explicit ChunkHeader(uint32_t fourCC);
 
-		uint32_t getPaddedDataSize() const { return calcPaddedDataSize(m_sizeBytes); }
+		uint32_t getPaddedDataSize() const {
+			return ((m_sizeBytes / kDataPaddingGranularity) + !!(m_sizeBytes % kDataPaddingGranularity)) *
+			       kDataPaddingGranularity;
+		}
 	};
 
 	struct ListHeader {
@@ -98,7 +95,7 @@ namespace Impl {
 		uint32_t m_paddingGranularity = 0;
 
 		// the ever-present flags - combination of AVIF_ values above - just set AVIF_HASINDEX
-		uint32_t m_flags = AVIF_HASINDEX;
+		uint32_t m_flags = AVIF_TRUSTCKTYPE | AVIF_HASINDEX; // | AVIF_MUSTUSEINDEX;
 
 		// # frames in RIFF-AVI section (does not count additional RIFF-AVIX sections)
 		uint32_t m_totalFrames = 0;
@@ -117,19 +114,9 @@ namespace Impl {
 		uint32_t m_reserved[4] = {};
 	};
 
-	// the docs say RECT - normally a windows struct with 4 LONG members.
-	// examining AVI files with RIFFPad shows that they are actually WORD members.
-	struct Rect {
-		uint16_t left;
-		uint16_t top;
-		uint16_t right;
-		uint16_t bottom;
-	};
-
 	struct STRHChunkData {
 		uint32_t m_fccType             = k4CC_vids;
-		uint32_t m_fccHandler = k4CC_LAGS;
-		//0;                                            // leave as 0
+		uint32_t m_fccHandler          = k4CC_LAGS;   // same codec as appears in strf (bmih) chunk
 		uint32_t m_flags               = 0;           // leave as 0
 		uint16_t m_priority            = 0;           // leave as 0
 		uint16_t m_language            = 0;           // leave as 0
@@ -141,7 +128,12 @@ namespace Impl {
 		uint32_t m_suggestedBufferSize = 0;           // set to largest single compressed frame size
 		uint32_t m_quality             = 0;           // not used by LAGS codec.
 		uint32_t m_sampleSize          = 0;           // seems to be ignored by lags and other codecs
-		Rect     m_frameRect           = {};
+		struct {
+			int16_t left;
+			int16_t top;
+			int16_t right;
+			int16_t bottom;
+		} m_frameRect = {}; // set right, bottom to w, h
 	};
 
 	// aka bitmapinfoheader
@@ -416,23 +408,24 @@ bool LagsFile::OpenRead(const std::string& path) {
 	         listHDRL.m_fourCC == k4CC_hdrl;
 	result = result && m_state->read(&chunkAVIH) && chunkAVIH.m_fourCC == k4CC_avih &&
 	         chunkAVIH.m_sizeBytes == sizeof(AVIHChunkData);
-	result =
-	  result && m_state->read(&(m_state->m_avihData)) && m_state->m_avihData.m_flags == AVIF_HASINDEX;
+	result = result && m_state->read(&(m_state->m_avihData)) &&
+	         m_state->m_avihData.m_flags == (AVIF_TRUSTCKTYPE | AVIF_HASINDEX);
 	result = result && m_state->read(&listSTRL) && listSTRL.m_listCC == k4CC_LIST &&
 	         listSTRL.m_fourCC == k4CC_strl;
 	result = result && m_state->read(&chunkSTRH) && chunkSTRH.m_fourCC == k4CC_strh &&
 	         chunkSTRH.m_sizeBytes == sizeof(STRHChunkData);
-	result = result && m_state->read(&(m_state->m_strhData)) && m_state->m_strhData.m_fccHandler == k4CC_LAGS;
+	result = result && m_state->read(&(m_state->m_strhData)) &&
+	         m_state->m_strhData.m_fccHandler == k4CC_LAGS;
 	result = result && m_state->read(&chunkSTRF) && chunkSTRF.m_fourCC == k4CC_strf &&
 	         chunkSTRF.m_sizeBytes == sizeof(STRFChunkData);
 	result = result && m_state->read(&(m_state->m_strfData)) &&
 	         m_state->m_strfData.m_compression == k4CC_LAGS &&
 	         (m_state->m_strfData.m_bitCount == 24 || m_state->m_strfData.m_bitCount == 32);
 
-#	if PAD_HEADER_WITH_JUNK_CHUNK
+#if PAD_HEADER_WITH_JUNK_CHUNK
 	result = result && m_state->read(&chunkJUNK) && chunkJUNK.m_fourCC == k4CC_JUNK;
 	result = result && m_state->seek_cur(chunkJUNK.m_sizeBytes);
-#	endif // PAD_HEADER_WITH_JUNK_CHUNK
+#endif // PAD_HEADER_WITH_JUNK_CHUNK
 
 	result = result && m_state->read(&(m_state->m_moviList));
 
@@ -504,15 +497,12 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 
 	m_state->m_avihData.m_width  = frameDims.w;
 	m_state->m_avihData.m_height = frameDims.h;
-	// fill in later? leave as zero?
-	m_state->m_avihData.m_maxBytesPerSec = 0;
 
 	ListHeader  listSTRL(k4CC_strl);
 	ChunkHeader chunkSTRH(k4CC_strh);
 
 	m_state->m_strhData.m_frameRect.right  = frameDims.w;
 	m_state->m_strhData.m_frameRect.bottom = frameDims.h;
-	//m_state->m_strhData.m_sampleSize       = frameDims.GetBytesPerPixel();
 
 	ChunkHeader chunkSTRF(k4CC_strf);
 
@@ -537,7 +527,7 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	// pad out entire header area from start of file to start of movie to 2KB
 	// no idea why this is necessary but apparently readers want to parse
 	// by loading a 2K chunk and choke if they don't have that much before frame data.
-#	if PAD_HEADER_WITH_JUNK_CHUNK
+#if PAD_HEADER_WITH_JUNK_CHUNK
 	if (result) {
 		ChunkHeader chunkJUNK(k4CC_JUNK);
 		chunkJUNK.m_sizeBytes =
@@ -547,7 +537,7 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 		result = result && m_state->write(&chunkJUNK);
 		result = result && m_state->write(padding.data(), chunkJUNK.m_sizeBytes);
 	}
-#	endif // PAD_HEADER_WITH_JUNK_CHUNK
+#endif // PAD_HEADER_WITH_JUNK_CHUNK
 
 	result = result && m_state->write(&(m_state->m_moviList), 1, &(m_state->m_moviOffset));
 
