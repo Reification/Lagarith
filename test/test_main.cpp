@@ -8,7 +8,7 @@ int main(int argc, const char* argv[]) {
 	if (const char* pathEnd = strrchr(argv[0], PATH_SEP)) {
 		char tpath[512] = {};
 		strncpy(tpath, argv[0], pathEnd - argv[0]);
-		chdir(tpath);
+		_chdir(tpath);
 	}
 
 	const int numFailures = LagarithTesting::runTests();
