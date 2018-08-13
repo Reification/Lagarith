@@ -328,16 +328,6 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		sprintf_s(path, "test_data/decompressed_%s_%%02d.png", fmtName);
 
 		decompressedFrames.Save(path);
-
-		sprintf_s(path, "test_data/compressed_%dx%dx%d_%d.lags", srcFrames.GetWidth(),
-		          srcFrames.GetHeight(), channelCount, srcFrames.GetFrameCount());
-		FILE* fp = nullptr;
-		fopen_s(&fp, path, "wb");
-		if (fp) {
-			fwrite(compressedBuf.data(), totalCompressedSize, 1, fp);
-			fclose(fp);
-			fp = nullptr;
-		}
 	}
 #endif
 
@@ -350,7 +340,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 			const stbi_uc* pRoundTripBits = (stbi_uc*)decompressedFrames.GetFrameRaster(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
 				char imageName[128];
-				sprintf_s(imageName, "test_data/mismatched_%s_frame_%02d.png", fmtName, i);
+				sprintf_s(imageName, "test_data/mismatched_%s_%02d.png", fmtName, i);
 				const uint32_t framePixCount = srcFrames.GetWidth() * srcFrames.GetHeight();
 				Raster         diff;
 				diff.Alloc(srcFrames.GetWidth(), srcFrames.GetHeight(), srcFrames.GetChannels());
@@ -442,22 +432,21 @@ static bool testVideoSequenceAvi(uint32_t channelCount) {
 }
 
 #if TEST_RGB24_FORMAT
-DECLARE_TEST(testEncodeDecodeRGB) {
-	return testEncodeDecode(3);
-}
-
 DECLARE_TEST(testVideoSequenceAviRGB) {
 	return testVideoSequenceAvi(3);
 }
 
+DECLARE_TEST(testEncodeDecodeRGB) {
+	return testEncodeDecode(3);
+}
 #endif // TEST_RGB24_FORMAT
 
 #if TEST_RGB32_FORMAT
-DECLARE_TEST(testEncodeDecodeRGBX) {
-	return testEncodeDecode(4);
-}
-
 DECLARE_TEST(testVideoSequenceAviRGBX) {
 	return testVideoSequenceAvi(4);
+}
+
+DECLARE_TEST(testEncodeDecodeRGBX) {
+	return testEncodeDecode(4);
 }
 #endif // TEST_RGB32_FORMAT
