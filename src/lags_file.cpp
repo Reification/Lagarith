@@ -1,6 +1,16 @@
 #include "lagarith_internal.h"
 #include "lagarith.h"
 
+// the AVI loading code is extremely unforgiving - it expects the exact format
+// that we write. it is not intended to be a general AVI or even LAGS avi
+// loader. the sole intent is to meet our needs for a lossless video clip format.
+//
+// TODOs:
+// poke in this header for info on AVI 2.0 index format (switch to that)
+// also need to add support for AVIX extension sections (need extended header chunk as well)
+// so files can be larger than 1GB.
+// #include "aviriff.h"
+
 namespace Lagarith {
 
 // if true, pad after end of header list to start of 'movi' list at 2KB offset
