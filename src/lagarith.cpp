@@ -23,25 +23,29 @@ namespace Lagarith {
 Codec::Codec() : cObj(new CompressClass()), threads(new ThreadData[2]) {}
 
 Codec::~Codec() {
+	Reset();
+}
+
+void Codec::Reset() {
 	try {
-		if (started == 0x1337) {
-			if (buffer2) {
-				CompressEnd();
-			} else {
-				DecompressEnd();
-			}
+		if (isCompressing()) {
+			CompressEnd();
+		} else if (isDecompressing()) {
+			DecompressEnd();
 		}
-		started = 0;
 	} catch (...) {
 	};
 }
 
-void Codec::SetMultithreaded(bool mt) {
+bool Codec::SetMultithreaded(bool mt) {
 	assert(width == 0 &&
 	       "multithreading must be configured before calling CompressBegin or DecompressBegin.");
 #if LAGARITH_MULTITHREAD_SUPPORT
 	if (!width)
 		multithreading = mt;
+	return multithreading;
+#else
+	return false;
 #endif
 }
 
@@ -49,7 +53,7 @@ void Codec::SetMultithreaded(bool mt) {
 // VideoSequence implementation
 //
 
-bool VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameCount) {
+bool VideoSequence::Initialize(const FrameDimensions& frameDims, CacheMode cacheMode) {
 	m_frames.clear();
 
 	if (!frameDims.IsValid()) {
@@ -58,11 +62,12 @@ bool VideoSequence::Initialize(const FrameDimensions& frameDims, uint32_t frameC
 	}
 
 	m_frameDims = frameDims;
+	m_cacheMode = cacheMode;
 
-	return AddEmptyFrames(frameCount);
+	return true;
 }
 
-bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath) {
+bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath, CacheMode cacheMode) {
 	LagsFile src;
 
 	Initialize(FrameDimensions());
@@ -71,14 +76,34 @@ bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath) {
 		return false;
 	}
 
-	if (!Initialize(src.GetFrameDimensions(), src.GetFrameCount())) {
+	if (!Initialize(src.GetFrameDimensions(), cacheMode)) {
 		return false;
 	}
 
-	for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
-		if (!src.ReadFrame(f, GetFrameRaster(f))) {
-			assert(false && "corrupted lags file!");
-			return false;
+	if (cacheMode == CacheMode::kRaster) {
+		AddEmptyFrames(src.GetFrameCount());
+
+		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+			if (!src.ReadFrame(f, {GetRasterFrame(f), m_frameDims})) {
+				assert(false && "corrupted lags file!");
+				return false;
+			}
+		}
+	} else {
+		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+			uint32_t compressedSize = 0;
+			if (!src.ReadCompressedFrame(f, nullptr, &compressedSize)) {
+				assert(false && "corrupted lags file!");
+				return false;
+			}
+			uint8_t* pCompressed = new uint8_t[compressedSize];
+
+			if (!src.ReadCompressedFrame(f, pCompressed, &compressedSize)) {
+				assert(false && "corrupted lags file!");
+				return false;
+			}
+
+			m_frames.push_back(RasterBuf(pCompressed));
 		}
 	}
 
@@ -96,33 +121,129 @@ bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
 		return false;
 	}
 
-	for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
-		if (!dst.WriteFrame(GetFrameRaster(f))) {
-			// should only happen if out of disk space.
-			dst.Close();
-			remove(lagsFilePath.c_str());
-			return false;
+	if (m_cacheMode == CacheMode::kRaster) {
+		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+			if (!dst.WriteFrame({GetRasterFrame(f), m_frameDims})) {
+				// should only happen if out of disk space.
+				dst.Close();
+				remove(lagsFilePath.c_str());
+				return false;
+			}
+		}
+	} else {
+		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+			uint32_t compressedSize = 0;
+			const void* pCompressed    = GetCompressedFrame(f, &compressedSize);
+			if (!pCompressed || !dst.WriteCompressedFrame(pCompressed, compressedSize)) {
+				// should only happen if out of disk space.
+				dst.Close();
+				remove(lagsFilePath.c_str());
+				return false;
+			}
 		}
 	}
 
 	return true;
 }
 
-uint8_t* VideoSequence::AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc) {
-	if (!pRasterSrc || !frameDims.IsValid() || frameDims != m_frameDims) {
-		return nullptr;
+bool VideoSequence::AddFrame(const RasterRef& frame) {
+	const uint8_t* pRasterSrc = frame.GetBufConstRef(m_frameDims);
+
+	if (frame.GetDims() != m_frameDims || !pRasterSrc) {
+		return false;
 	}
 
-	const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes();
-	uint8_t*       pRaster        = new uint8_t[frameSizeBytes];
+	bool result = true;
 
-	m_frames.push_back(RasterBuf(pRaster));
-	memcpy_s(pRaster, frameSizeBytes, pRasterSrc, frameSizeBytes);
+	if (m_cacheMode == CacheMode::kRaster) {
+		const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes();
+		uint8_t*       pRaster        = new uint8_t[frameSizeBytes];
 
-	return pRaster;
+		memcpy_s(pRaster, frameSizeBytes, pRasterSrc, frameSizeBytes);
+		m_frames.push_back(RasterBuf(pRaster));
+	} else {
+		RasterBuf intermed(new uint8_t[Codec::GetMaxCompressedSize(m_frameDims)]);
+		uint32_t  compressedSize = 0;
+		result                   = m_encoder.Compress(frame, intermed.get(), &compressedSize);
+
+		if (result) {
+			uint8_t* pCompressed = new uint8_t[compressedSize];
+			memcpy_s(pCompressed, compressedSize, intermed.get(), compressedSize);
+			m_frames.push_back(RasterBuf(pCompressed));
+		}
+	}
+
+	return result;
+}
+
+bool VideoSequence::AddFrame(const void* pCompressedData, uint32_t compressedSize) {
+	if (!m_frameDims.IsValid() || !pCompressedData || !compressedSize) {
+		return false;
+	}
+
+	bool result = true;
+
+	if (m_cacheMode == CacheMode::kCompressed) {
+		uint8_t* pDstBuf = new uint8_t[compressedSize];
+
+		memcpy_s(pDstBuf, compressedSize, pCompressedData, compressedSize);
+		m_frames.push_back(RasterBuf(pDstBuf));
+	} else {
+		const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes();
+		uint8_t*       pRaster        = new uint8_t[frameSizeBytes];
+
+		result = m_decoder.Decompress(pCompressedData, compressedSize, {pRaster, m_frameDims});
+
+		if (result) {
+			m_frames.push_back(RasterBuf(pRaster));
+		} else {
+			delete[] pRaster;
+		}
+	}
+
+	return result;
+}
+
+bool VideoSequence::DecodeFrame(uint32_t frameIndex, const RasterRef& dstBuf) {
+	if (frameIndex >= GetFrameCount() || dstBuf.GetDims() != m_frameDims) {
+		return false;
+	}
+
+	bool result = true;
+
+	if (m_cacheMode == CacheMode::kRaster) {
+		const uint8_t* pSrc = GetRasterFrame(frameIndex);
+		memcpy_s(dstBuf.GetBufRef(m_frameDims), dstBuf.GetDims().GetSizeBytes(), pSrc,
+		         m_frameDims.GetSizeBytes());
+	} else {
+		uint32_t    compressedSize = 0;
+		const void* pSrc           = GetCompressedFrame(frameIndex, &compressedSize);
+		result                     = m_decoder.Decompress(pSrc, compressedSize, dstBuf);
+	}
+
+	return result;
+}
+
+const void* VideoSequence::GetCompressedFrame(uint32_t  frameIndex,
+                                              uint32_t* pCompressedSizeOut) const {
+	const void* pCompressed =
+	  (m_cacheMode == CacheMode::kCompressed && (frameIndex < m_frames.size()))
+	    ? m_frames[frameIndex].get()
+	    : nullptr;
+
+	if (pCompressed) {
+		*pCompressedSizeOut = *((uint32_t*)pCompressed);
+		return ((uint8_t*)pCompressed) + sizeof(uint32_t);
+	}
+
+	return nullptr;
 }
 
 bool VideoSequence::AddEmptyFrames(uint32_t frameCount) {
+	if (m_cacheMode == CacheMode::kCompressed) {
+		return false;
+	}
+
 	if (const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes()) {
 		for (uint32_t i = 0; i < frameCount; i++) {
 			uint8_t* pRaster = new uint8_t[frameSizeBytes];

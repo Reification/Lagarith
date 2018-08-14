@@ -189,7 +189,7 @@ public:
 				Initialize(frameDims);
 			}
 
-			if (!AddFrame(frameDims, (uint8_t*)tempFrame.m_pBits)) {
+			if (!AddFrame({ (uint8_t*)tempFrame.m_pBits, frameDims})) {
 				Lagarith::FrameDimensions actualDims = GetFrameDimensions();
 				fprintf(stderr, "image %s (%dx%d) does not match sequence dimensions (%dx%d)\n", imageName,
 				        frameDims.w, frameDims.h, actualDims.w, actualDims.h);
@@ -213,7 +213,7 @@ public:
 
 		for (uint32_t i = 0, e = GetFrameCount(); i < e; i++) {
 			sprintf_s(imageName, format, i);
-			tempFrame.m_pBits = (stbi_uc*)GetFrameRaster(i);
+			tempFrame.m_pBits = (stbi_uc*)GetRasterFrame(i);
 			if (!tempFrame.Save(imageName)) {
 				fprintf(stderr, "failed to save frame %s\n", imageName);
 				return false;
@@ -246,37 +246,29 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	std::vector<uint8_t>            compressedBuf;
 	RasterSequence                  decompressedFrames;
 
-	if (!decompressedFrames.Initialize(frameDims, srcFrames.GetFrameCount())) {
+	if (!decompressedFrames.Initialize(frameDims, Lagarith::VideoSequence::CacheMode::kRaster)) {
 		fprintf(stderr, "Failed initializing raster sequence: %d frames of %dx%dx%d rasters.\n",
 		        srcFrames.GetFrameCount(), frameDims.w, frameDims.h, frameDims.GetBytesPerPixel());
 		return false;
 	}
 
+	decompressedFrames.AddEmptyFrames(srcFrames.GetFrameCount());
+
 	compressedBuf.resize((size_t)(inputFrameSize * srcFrames.GetFrameCount() * 1.1));
 
 	// encode execution
 	{
-		std::unique_ptr<Lagarith::Codec> pCode(new Lagarith::Codec());
+		std::unique_ptr<Lagarith::Codec> pCodec(new Lagarith::Codec());
 
-		pCode->SetMultithreaded(true);
-
-		result = pCode->CompressBegin(frameDims);
-
-		if (!result) {
-			fprintf(stderr, "CompressBegin failed.\n");
-			return false;
-		}
-
-		const void* pSrcBits = nullptr;
+		const uint8_t* pSrcBits = nullptr;
 		uint8_t*    pDstBits = compressedBuf.data();
 		uint32_t    i        = 0;
 
-		for (; !!(pSrcBits = srcFrames.GetFrameRaster(i)); i++) {
-			result = pCode->Compress(pSrcBits, pDstBits, &(compressedFrameSizes[i]));
+		for (; !!(pSrcBits = srcFrames.GetRasterFrame(i)); i++) {
+			result = pCodec->Compress({pSrcBits, frameDims}, pDstBits, &(compressedFrameSizes[i]));
 
 			if (!result) {
 				fprintf(stderr, "Compress failed.\n");
-				pCode->CompressEnd();
 				return false;
 			}
 
@@ -284,8 +276,6 @@ static bool testEncodeDecode(uint32_t channelCount) {
 			pDstBits += compressedFrameSizes[i];
 			totalCompressedSize += compressedFrameSizes[i];
 		}
-
-		pCode->CompressEnd();
 
 		printf("Original size: %d bytes. Total compressed size: %d bytes. compression factor: %g\n",
 		       srcFrames.GetFrameSizeBytes() * srcFrames.GetFrameCount(), totalCompressedSize,
@@ -297,29 +287,17 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	{
 		std::unique_ptr<Lagarith::Codec> pCode(new Lagarith::Codec());
 
-		pCode->SetMultithreaded(true);
-
-		result = pCode->DecompressBegin(frameDims);
-
-		if (!result) {
-			fprintf(stderr, "DecompressBegin failed.\n");
-			return false;
-		}
-
 		uint8_t* pDstBits = nullptr;
 		uint32_t i        = 0;
 
-		for (; !!(pDstBits = decompressedFrames.GetFrameRaster(i)); i++) {
-			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], pDstBits);
+		for (; !!(pDstBits = decompressedFrames.GetRasterFrame(i)); i++) {
+			result = pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], { pDstBits, frameDims });
 
 			if (!result) {
 				fprintf(stderr, "Decompress failed.\n");
-				pCode->DecompressEnd();
 				return false;
 			}
 		}
-
-		pCode->DecompressEnd();
 	}
 
 #if DUMP_INTERMED_DATA
@@ -336,8 +314,8 @@ static bool testEncodeDecode(uint32_t channelCount) {
 		uint32_t mismatches = 0;
 
 		for (uint32_t i = 0; i < srcFrames.GetFrameCount(); i++) {
-			const stbi_uc* pOrigBits      = (stbi_uc*)srcFrames.GetFrameRaster(i);
-			const stbi_uc* pRoundTripBits = (stbi_uc*)decompressedFrames.GetFrameRaster(i);
+			const stbi_uc* pOrigBits      = (stbi_uc*)srcFrames.GetRasterFrame(i);
+			const stbi_uc* pRoundTripBits = (stbi_uc*)decompressedFrames.GetRasterFrame(i);
 			if (memcmp(pOrigBits, pRoundTripBits, inputFrameSize) != 0) {
 				char imageName[128];
 				sprintf_s(imageName, "test_data/mismatched_%s_%02d.png", fmtName, i);
@@ -420,8 +398,8 @@ static bool testVideoSequenceAvi(uint32_t channelCount) {
 	const uint32_t frameSizeBytes = d0.GetSizeBytes();
 
 	for (uint32_t f = 0, e = seq0.GetFrameCount(); f < e; f++) {
-		const void* pR0 = seq0.GetFrameRaster(f);
-		const void* pR1 = seq1.GetFrameRaster(f);
+		const void* pR0 = seq0.GetRasterFrame(f);
+		const void* pR1 = seq1.GetRasterFrame(f);
 		if (memcmp(pR0, pR1, frameSizeBytes)) {
 			fprintf(stderr, "loaded/saved rasters don't match at frame %d\n", f);
 			return false;

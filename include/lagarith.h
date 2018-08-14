@@ -25,6 +25,9 @@ namespace Lagarith {
 struct ThreadData;
 class CompressClass;
 
+// X channel is in alpha slot, but is just padding.
+// value is always 0xff, so not referred to as A or alpha.
+
 enum BitsPerPixel : uint16_t { kRGB = 24, kRGBX = 32 };
 
 struct FrameDimensions {
@@ -47,22 +50,144 @@ struct FrameDimensions {
 	uint32_t GetSizeBytes() const { return w * h * GetBytesPerPixel(); }
 };
 
+//! 24 bit pixel byte order of rasters is always b, g, r
+struct PixelRGB {
+	uint8_t b;
+	uint8_t g;
+	uint8_t r;
+};
+
+//! 32 bit pixel byte order of rasters is always b, g, r, a
+struct PixelRGBX {
+	union {
+		struct : PixelRGB {
+			uint8_t x;
+		} bgrx;
+		uint32_t xxbbggrr;
+	};
+};
+
+//! Reference to a raster buffer with information on size, format and read/write permissions
+class RasterRef {
+public:
+	RasterRef() = default;
+
+	RasterRef(uint8_t* p, FrameDimensions dims)
+	  : m_ref(p), m_dims(dims) { /*trust bpp member of dims*/
+	}
+
+	RasterRef(PixelRGB* p, FrameDimensions dims) : m_ref(p), m_dims({dims.w, dims.h, kRGB}) {}
+
+	RasterRef(PixelRGBX* p, FrameDimensions dims) : m_ref(p), m_dims({dims.w, dims.h, kRGBX}) {}
+
+	RasterRef(const uint8_t* p, FrameDimensions dims) : m_ref(p), m_dims(dims), m_isConst(true) {
+		/*trust bpp member of _dims*/
+	}
+
+	RasterRef(const PixelRGB* p, FrameDimensions dims)
+	  : m_ref(p), m_dims({dims.w, dims.h, kRGB}), m_isConst(true) {}
+
+	RasterRef(const PixelRGBX* p, FrameDimensions dims)
+	  : m_ref(p), m_dims({dims.w, dims.h, kRGBX}), m_isConst(true) {}
+
+	uint8_t* GetBufRef(const FrameDimensions& expected) const {
+		return (!m_isConst && (m_dims == expected)) ? (uint8_t*)m_ref.pRGBX : nullptr;
+	}
+
+	const uint8_t* GetBufConstRef(const FrameDimensions& expected) const {
+		return (m_dims == expected) ? (const uint8_t*)m_ref.pRGBX : nullptr;
+	}
+
+	PixelRGB* GetRGBRef(const FrameDimensions& expected) const {
+		return (!m_isConst && (m_dims == expected) && (m_dims.bpp == kRGB)) ? m_ref.pRGB : nullptr;
+	}
+
+	const PixelRGB* GetRGBConstRef(const FrameDimensions& expected) const {
+		return ((m_dims == expected) && (m_dims.bpp == kRGB)) ? m_ref.pRGB : nullptr;
+	}
+
+	PixelRGBX* GetRGBXRef(const FrameDimensions& expected) const {
+		return (!m_isConst && (m_dims == expected) && (m_dims.bpp == kRGBX)) ? m_ref.pRGBX : nullptr;
+	}
+
+	const PixelRGBX* GetRGBXConstRef(const FrameDimensions& expected) const {
+		return ((m_dims == expected) && (m_dims.bpp == kRGBX)) ? m_ref.pRGBX : nullptr;
+	}
+
+	const FrameDimensions& GetDims() const { return m_dims; }
+
+	bool IsConst() const { return !!m_isConst; }
+
+private:
+	union Ref {
+		PixelRGB*  pRGB;
+		PixelRGBX* pRGBX;
+		Ref() = default;
+		Ref(void* p) : pRGB((PixelRGB*)p) {}
+		Ref(const void* p) : pRGB((PixelRGB*)p) {}
+	} m_ref;
+
+	FrameDimensions m_dims = {};
+
+	uint16_t m_isConst = false;
+};
+
 class Codec {
 public:
 	Codec();
 	~Codec();
 
-	bool CompressBegin(const FrameDimensions& frameDims);
-	bool Compress(const void* src, void* dst, uint32_t* frameSizeBytesOut);
-	void CompressEnd();
+	//! worst case scenario - recommended size of target buffer for calls to Compress()
+	static uint32_t GetMaxCompressedSize(const FrameDimensions& frameDims) {
+		const uint32_t rgbSize = (frameDims.w * frameDims.h * 3);
+		return rgbSize + (rgbSize >> 16) + 0x100;
+	}
 
-	bool DecompressBegin(const FrameDimensions& frameDims);
-	bool Decompress(const void* src, uint32_t compressedFrameSizeBytes, void* dst);
-	void DecompressEnd();
+	/*! compress a single frame. 
+	 * initialization overhead incurred on first call since construction or Reset()
+	 * returns true on success
+	 * returns false when
+	 * - last Compress call was made with different frame resolution or pixel format
+	 * - last call was to Decompress()
+	 * - dst for frameSizeBytesOut is null
+	 * - src buffer is null or any source dimension is 0
+	 * When changing operation (compress/decompress) or resolution, Reset()
+	 * must be called first.
+	 */
+	bool Compress(const RasterRef& src, void* dst, uint32_t* frameSizeBytesOut);
 
-	void SetMultithreaded(bool mt);
+	/*! compress a single frame. 
+	 * initialization overhead incurred on first call since construction or Reset()
+	 * returns true on success
+	 * returns false when
+	 * - last Decompress call was made with different frame resolution or pixel format
+	 * - last call was to Compress()
+	 * - src pointer is null
+	 * - dst buffer is null, marked const, or any dst dimension is 0
+	 * When changing operation (compress/decompress) or resolution, Reset()
+	 * must be called first.
+	 */
+	bool Decompress(const void* src, uint32_t compressedFrameSizeBytes, const RasterRef& dst);
+
+	/*! Release all buffers and return to constructed state.
+	    Must be called when switching between compression and decompression operations or when
+			changing frame resolutions/pixel format
+			Called from destructor - does not need to be manually called when not switching operations.
+	 */
+	void Reset();
+
+	/*! Enable multithreading on systems that support it.
+	 * returns true if supported and enabled.
+	 * returns false when disabling or not supported.
+	 */
+	bool SetMultithreaded(bool mt);
 
 private:
+	bool CompressBegin(const FrameDimensions& frameDims);
+	void CompressEnd();
+	bool DecompressBegin(const FrameDimensions& frameDims);
+	void DecompressEnd();
+
 	bool InitThreads(int encode);
 	void EndThreads();
 	void CompressRGB24(unsigned int* frameSizeBytesOut);
@@ -74,14 +199,17 @@ private:
 	void Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2, uint32_t len2, uint8_t* dst3,
 	                     uint32_t len3);
 	void ArithRGBDecompress();
+	bool isCompressing() const { return (started == 0x1337) && buffer && prev; }
+	bool isDecompressing() const { return (started == 0x1337) && buffer && !prev; }
+
 
 private:
 	int            started         = 0;
 	uint8_t*       buffer          = nullptr;
+	uint8_t*       buffer2         = nullptr;
 	uint8_t*       prev            = nullptr;
 	const uint8_t* in              = nullptr;
 	uint8_t*       out             = nullptr;
-	uint8_t*       buffer2         = nullptr;
 	uint32_t       length          = 0;
 	uint32_t       width           = 0;
 	uint32_t       height          = 0;
@@ -113,10 +241,22 @@ public:
 	bool OpenWrite(const std::string& path, const FrameDimensions& frameDims);
 
 	//! read a specified video frame. valid on files opened with either OpenRead() or OpenWrite()
-	bool ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster);
+	bool ReadFrame(uint32_t frameIdx, const RasterRef& dst);
+
+	/*! reads LAGS-encoded video frame from file into destination buffer, skipping decoding step.
+	 * target buffer should be at least as large as specified by Codec::GetMaxCompressedSize()
+	 * if pDstCompressedBuf is null, pCompressedBufSize out is set and then true is returned.
+	 */
+	bool ReadCompressedFrame(uint32_t frameIdx, void* pDstCompressedBuf,
+	                         uint32_t* pCompressedBufSizeOut);
 
 	//! write a video frame. only valid on files opened with OpenWrite()
-	bool WriteFrame(const uint8_t* pSrcRaster);
+	bool WriteFrame(const RasterRef& src);
+
+	/*! writes LAGS-encoded video frame from source buffer into lags file, skipping encoding step.
+	* target buffer should be at least as large as specified by Codec::GetMaxCompressedSize()
+	*/
+	bool WriteCompressedFrame(const void* pSrcCompressedBuf, uint32_t compressedBufSize);
 
 	//! close a file that has been opened for either reading or writing. resets all state.
 	bool Close();
@@ -142,14 +282,21 @@ private:
  */
 class VideoSequence {
 public:
+	enum class CacheMode { kRaster, kCompressed };
+
+public:
 	VideoSequence() = default;
 
 	//! instantiate and attempt to load video file.
-	explicit VideoSequence(const std::string& lagsFilePath) { LoadLagsFile(lagsFilePath); }
+	explicit VideoSequence(const std::string& lagsFilePath,
+	                       CacheMode          cacheMode = CacheMode::kRaster) {
+		LoadLagsFile(lagsFilePath, cacheMode);
+	}
 
 	//! instantiate and initialize frame size, allocate frameCount frames if non-zero
-	explicit VideoSequence(const FrameDimensions& frameDims, uint32_t frameCount = 0) {
-		Initialize(frameDims, frameCount);
+	explicit VideoSequence(const FrameDimensions& frameDims,
+	                       CacheMode              cacheMode = CacheMode::kRaster) {
+		Initialize(frameDims, cacheMode);
 	}
 
 	~VideoSequence() = default;
@@ -164,38 +311,64 @@ public:
 	 * returns true if frameDims are valid
 	 * returns false if any member of frameDims is 0. frameCount of 0 is valid.
 	 */
-	bool Initialize(const FrameDimensions& frameDims, uint32_t frameCount = 0);
+	bool Initialize(const FrameDimensions& frameDims, CacheMode cacheMode = CacheMode::kRaster);
 
 	/*! will always initialize or destructively reinitialize the video sequence.
 	 *returns true on success, false for missing or incompatible file.
 	 */
-	bool LoadLagsFile(const std::string& lagsFilePath);
+	bool LoadLagsFile(const std::string& lagsFilePath, CacheMode cacheMode = CacheMode::kRaster);
 
 	//! returns true on success, false if file can't be saved or if current frame count is zero.
 	bool SaveLagsFile(const std::string& lagsFilePath) const;
 
-	//! returns currently configured frame dimensions
-	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
-
 	//! returns current allocated frame count
 	uint32_t GetFrameCount() const { return (uint32_t)m_frames.size(); }
 
-	//! returns nullptr if frameIndex out of range.
-	uint8_t* GetFrameRaster(uint32_t frameIndex) const {
-		return (frameIndex < m_frames.size()) ? m_frames[frameIndex].get() : nullptr;
+	/*! returns pointer to cached raster frame at specified index.
+	 * returns nullptr if frameIndex out of range or sequence is in compressed mode
+	 */
+	uint8_t* GetRasterFrame(uint32_t frameIndex) const {
+		return (m_cacheMode == CacheMode::kRaster && (frameIndex < m_frames.size())) ? m_frames[frameIndex].get() : nullptr;
 	}
 
-	/*! allocates new frame and copies from pRaster into it.
-	 * video sequence must have been initialized first.
-	 * frameDims must match current initalized format.
-	 * pRaster must be non-null and sized/formatted to match specified FrameDimensions
-	 * returns pointer to newly allocated frame raster on success.
-	 * returns nullptr if VideoSequence has not been initialized or frameDims does not match video sequence dimensions.
+	/*! returns pointer to cached compressed frame at specified index.
+	 * returns nullptr if frameIndex out of range or sequence is in raster mode
 	 */
-	uint8_t* AddFrame(const FrameDimensions& frameDims, const uint8_t* pRasterSrc);
+	const void* GetCompressedFrame(uint32_t frameIndex, uint32_t* pCompressedSizeOut) const;
 
-	//! allocates frameCount new frames. returns true on success, false if Initialize() or LoadLagsFile() has not been successfully called.
+	/*!
+	 * allocates a new frame and copies or decodes from pCompressedData into it.
+	 * video sequence must have been initialized first.
+	 */
+	bool AddFrame(const void* pCompressedData, uint32_t compressedSize);
+
+	/*! decodes or copies frame at specified index into target buffer.
+	 * returns false if frameIndex out of range or dstBuf is invalid.
+	 */
+	bool DecodeFrame(uint32_t frameIndex, const RasterRef& dstBuf);
+
+	/*! allocates new frame and copies or encodes from pRaster into it.
+	 * video sequence must have been initialized first.
+	 * dstBuf must be valid and match current initalized size and format.
+	 * returns pointer to newly allocated frame raster on success.
+	 * returns nullptr if VideoSequence has not been initialized or dstBuf does not meet requirements.
+	 */
+	bool AddFrame(const RasterRef& frame);
+
+	/*! allocates frameCount new frames.
+	 * only valid when CacheMode is kRaster
+	 * returns true on success
+	 * returns false if
+	 * - Initialize() or LoadLagsFile() has not been successfully called
+	 * - CacheMode is kCompressed
+	 */
 	bool AddEmptyFrames(uint32_t frameCount);
+
+	//! returns currently configured frame dimensions
+	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
+
+	//! returns currently configured cache mode
+	CacheMode GetCacheMode() const { return m_cacheMode; }
 
 private:
 	using RasterBuf = std::unique_ptr<uint8_t[]>;
@@ -203,6 +376,9 @@ private:
 private:
 	std::vector<RasterBuf> m_frames;
 	FrameDimensions        m_frameDims;
+	Codec                  m_encoder;
+	Codec                  m_decoder;
+	CacheMode              m_cacheMode = CacheMode::kRaster;
 };
 
 } // namespace Lagarith

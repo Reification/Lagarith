@@ -21,8 +21,10 @@ namespace Lagarith {
 
 bool Codec::DecompressBegin(const FrameDimensions& frameDims) {
 	if (started == 0x1337) {
-		DecompressEnd();
+		assert(false && "Reset() was not called before re-initialing!");
+		return false;
 	}
+
 	started = 0;
 
 	int buffer_size;
@@ -58,7 +60,9 @@ bool Codec::DecompressBegin(const FrameDimensions& frameDims) {
 
 // release resources when decompression is done
 void Codec::DecompressEnd() {
-	if (started == 0x1337) {
+	assert(!isCompressing() && "Calling DecompressEnd() after CompressBegin()!");
+
+	if (isDecompressing()) {
 		if (multithreading) {
 			EndThreads();
 		}
@@ -66,8 +70,9 @@ void Codec::DecompressEnd() {
 		lag_aligned_free(buffer, "Codec::buffer (decompress)");
 		lag_aligned_free(buffer2, "Codec::buffer2 (decompress)");
 		cObj->FreeCompressBuffers();
+
+		started = 0;
 	}
-	started = 0;
 }
 
 void Codec::Decode3Channels(uint8_t* dst1, uint32_t len1, uint8_t* dst2, uint32_t len2,
@@ -183,17 +188,29 @@ void Codec::SetSolidFrameRGB32(const uint32_t r, const uint32_t g, const uint32_
 	}
 }
 
-bool Codec::Decompress(const void* src, uint32_t compressedFrameSizeBytes, void* dst) {
-	assert(width && height && compressedFrameSizeBytes && src && dst &&
-	       "decompression not started or invalid frame parameters!");
-
-	if (!(width && height && compressedFrameSizeBytes && src && dst)) {
+bool Codec::Decompress(const void* src, uint32_t compressedFrameSizeBytes, const RasterRef& dst) {
+	if (!started) {
+		if (!DecompressBegin(dst.GetDims())) {
+			return false;
+		}
+	} else if (!buffer2 || dst.GetDims() != FrameDimensions({(uint16_t)width, (uint16_t)height,
+	                                                         (BitsPerPixel)format})) {
+		// format changed or last call was to Compress() - must call reset first.
+		// we don't want silent incursion of reset/setup overhead.
+		// the cost must be clear in the API
 		return false;
 	}
 
-	out             = (uint8_t*)dst;
+	out             = dst.GetBufRef({(uint16_t)width, (uint16_t)height, (BitsPerPixel)format});
 	in              = (const uint8_t*)src;
 	compressed_size = compressedFrameSizeBytes;
+
+	assert(width && height && format && in && out &&
+	       "decompression not started or invalid frame parameters!");
+
+	if (!(width && height && format && in && out)) {
+		return false;
+	}
 
 	if (compressed_size == 0) {
 		return true;

@@ -22,8 +22,10 @@ namespace Lagarith {
 // initalize the codec for compression
 bool Codec::CompressBegin(const FrameDimensions& frameDims) {
 	if (started == 0x1337) {
-		CompressEnd();
+		assert(false && "Reset() was not called before re-initialing!");
+		return false;
 	}
+
 	started = 0;
 
 	width  = frameDims.w;
@@ -66,7 +68,9 @@ bool Codec::CompressBegin(const FrameDimensions& frameDims) {
 // release resources when compression is done
 
 void Codec::CompressEnd() {
-	if (started == 0x1337) {
+	assert(!isDecompressing() && "CompressEnd() called after DecompressBegin()!");
+
+	if (isCompressing()) {
 		if (multithreading) {
 			EndThreads();
 		}
@@ -75,8 +79,8 @@ void Codec::CompressEnd() {
 		lag_aligned_free(buffer2, "Codec::buffer2 (compress)");
 		lag_aligned_free(prev, "Codec::prev (compress)");
 		cObj->FreeCompressBuffers();
+		started = 0;
 	}
-	started = 0;
 }
 
 // see this doc entry for setting thread priority of std::thread using native handle + pthreads.
@@ -228,14 +232,25 @@ void Codec::CompressRGB24(unsigned int* frameSizeBytesOut) {
 // called to compress a frame; the actual compression will be
 // handed off to other functions depending on the color space and settings
 
-bool Codec::Compress(const void* src, void* dst, uint32_t* frameSizeBytesOut) {
-	in  = (const uint8_t*)src;
+bool Codec::Compress(const RasterRef& src, void* dst, uint32_t* frameSizeBytesOut) {
+	if (!started) {
+		if (!CompressBegin(src.GetDims())) {
+			return false;
+		}
+	} else if (!isCompressing() || src.GetDims() != FrameDimensions({(uint16_t)width, (uint16_t)height,
+	                                                         (BitsPerPixel)format})) {
+		// format changed or last call was to Decompress() - must call reset first.
+		// we don't want silent incursion of reset/setup overhead.
+		// the cost must be clear in the API
+		return false;
+	}
+
+	in  = src.GetBufConstRef({(uint16_t)width, (uint16_t)height, (BitsPerPixel)format});
 	out = (uint8_t*)dst;
 
-	assert(width && height && format && src && dst && frameSizeBytesOut &&
-	       "CompressBegin not called or invalid frame parameters");
+	assert(width && height && format && in && out && frameSizeBytesOut && "invalid frame parameters");
 
-	if (width && height && format && src && dst && frameSizeBytesOut) {
+	if (width && height && format && in && out && frameSizeBytesOut) {
 		CompressRGB24(frameSizeBytesOut);
 		return true;
 	}

@@ -209,13 +209,8 @@ namespace Impl {
 				fclose(m_fp);
 			}
 
-			if (m_bEncoderInitialized) {
-				m_encoder.CompressEnd();
-			}
-
-			if (m_bDecoderInitialized) {
-				m_decoder.DecompressEnd();
-			}
+			m_encoder.Reset();
+			m_decoder.Reset();
 		}
 
 		bool openRead(const char* path) {
@@ -332,36 +327,13 @@ namespace Impl {
 			return false;
 		}
 
-		bool initEncoder(FrameDimensions dims) {
-			assert(!m_bEncoderInitialized);
-			m_bEncoderInitialized = m_encoder.CompressBegin(dims);
-			if (m_bEncoderInitialized) {
-				const size_t tempBufSize = (size_t)(dims.GetSizeBytes() * 1.1);
+		uint8_t* getIntermediateBuf(const FrameDimensions& dims) {
+			if (m_intermediateBuf.empty()) {
+				const size_t bufSize = (size_t)(Codec::GetMaxCompressedSize(dims));
 
-				if (m_endecodeTempBuf.empty()) {
-					m_endecodeTempBuf.resize(tempBufSize);
-				}
-
-				assert((m_endecodeTempBuf.size() == tempBufSize) &&
-				       "encoder/decoder set up for different sizes!");
+				m_intermediateBuf.resize(bufSize);
 			}
-			return m_bEncoderInitialized;
-		}
-
-		bool initDecoder(FrameDimensions dims) {
-			assert(!m_bDecoderInitialized);
-			m_bDecoderInitialized = m_decoder.CompressBegin(dims);
-			if (m_bDecoderInitialized) {
-				const size_t tempBufSize = (size_t)(dims.GetSizeBytes() * 1.1);
-
-				if (m_endecodeTempBuf.empty()) {
-					m_endecodeTempBuf.resize(tempBufSize);
-				}
-
-				assert((m_endecodeTempBuf.size() == tempBufSize) &&
-				       "encoder/decoder set up for different sizes!");
-			}
-			return m_bDecoderInitialized;
+			return m_intermediateBuf.data();
 		}
 
 		FILE*                      m_fp           = nullptr;
@@ -373,7 +345,7 @@ namespace Impl {
 		STRHChunkData              m_strhData;
 		STRFChunkData              m_strfData;
 		ListHeader                 m_moviList;
-		std::vector<uint8_t>       m_endecodeTempBuf;
+		std::vector<uint8_t>       m_intermediateBuf;
 
 		uint64_t m_avihOffset = 0;
 		uint64_t m_strhOffset = 0;
@@ -381,9 +353,6 @@ namespace Impl {
 
 		Codec m_decoder;
 		Codec m_encoder;
-
-		bool m_bDecoderInitialized = false;
-		bool m_bEncoderInitialized = false;
 	};
 }
 
@@ -441,9 +410,8 @@ bool LagsFile::OpenRead(const std::string& path) {
 
 	if (result) {
 		m_frameCount          = m_state->m_strhData.m_length;
-		m_frameDims.bpp       = (BitsPerPixel)m_state->m_strfData.m_bitCount;
-		m_frameDims.w         = m_state->m_strfData.m_width;
-		m_frameDims.h         = m_state->m_strfData.m_height;
+		m_frameDims           = {m_state->m_strfData.m_width, m_state->m_strfData.m_height,
+                   (BitsPerPixel)m_state->m_strfData.m_bitCount};
 		m_state->m_moviOffset = _ftelli64(m_state->m_fp) - sizeof(uint32_t);
 	}
 
@@ -480,8 +448,6 @@ bool LagsFile::OpenRead(const std::string& path) {
 			}
 		}
 	}
-
-	result = result && m_state->initDecoder(m_frameDims);
 
 	if (!result) {
 		Close();
@@ -551,8 +517,6 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 
 	result = result && m_state->write(&(m_state->m_moviList), 1, &(m_state->m_moviOffset));
 
-	result = result && m_state->initEncoder(frameDims);
-
 	if (!result) {
 		Close();
 		remove(path.c_str());
@@ -562,39 +526,97 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 	return true;
 }
 
-bool LagsFile::ReadFrame(uint32_t frameIdx, uint8_t* pDstRaster) {
+bool LagsFile::ReadCompressedFrame(uint32_t frameIdx, void* pDstCompressedBuf,
+                                   uint32_t* pCompressedBufSizeOut) {
 	assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 
-	if (frameIdx >= m_frameCount || !m_state->m_fp) {
+	if (frameIdx >= m_frameCount || !m_state->m_fp || !pCompressedBufSizeOut) {
 		return false;
 	}
 
-	if (!m_state->m_bDecoderInitialized) {
-		if (!m_state->initDecoder(m_frameDims)) {
-			return false;
-		}
-	}
-
 	uint64_t compressedSize = 0;
-	uint8_t* pTempBuf       = m_state->m_endecodeTempBuf.data();
 	bool     result         = true;
 
-	result = result && m_state->seek_frame(frameIdx, &compressedSize);
-	result = result && m_state->read(pTempBuf, compressedSize);
-	result = result && m_state->m_decoder.Decompress(pTempBuf, compressedSize, pDstRaster);
+	if (pDstCompressedBuf) {
+		result = result && m_state->seek_frame(frameIdx, &compressedSize);
+		result                 = result && m_state->read((uint8_t*)pDstCompressedBuf, compressedSize);
+		*pCompressedBufSizeOut = compressedSize;
+	} else if ( frameIdx < m_frameCount ) {
+		*pCompressedBufSizeOut = m_state->m_frameLocations[frameIdx].m_frameSize;
+	} else {
+		result = false;
+	}
 
 	return result;
 }
 
-bool LagsFile::WriteFrame(const uint8_t* pSrcRaster) {
-	FrameLocation loc = {};
+bool LagsFile::ReadFrame(uint32_t frameIdx, const RasterRef& dst) {
+	assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 
-	uint32_t compressedSize = 0;
-	uint8_t* pTempBuf       = m_state->m_endecodeTempBuf.data();
+	if (frameIdx >= m_frameCount || !m_state->m_fp || dst.GetDims() != m_frameDims) {
+		return false;
+	}
+
+	uint64_t compressedSize = 0;
+	uint8_t* pTempBuf       = m_state->getIntermediateBuf(m_frameDims);
 	bool     result         = true;
 
+	result = result && m_state->seek_frame(frameIdx, &compressedSize);
+	result = result && m_state->read(pTempBuf, compressedSize);
+	result = result && m_state->m_decoder.Decompress(pTempBuf, compressedSize, dst);
+
+	return result;
+}
+
+bool LagsFile::WriteCompressedFrame(const void* pSrcCompressedBuf, uint32_t compressedBufSize) {
+	if (!m_state->m_fp || !pSrcCompressedBuf || !compressedBufSize) {
+		return false;
+	}
+
+	FrameLocation loc    = {};
+	bool          result = true;
+
 	result = result && m_state->seek_end();
-	result = result && m_state->m_encoder.Compress(pSrcRaster, pTempBuf, &compressedSize);
+
+	ChunkHeader chunkVFrame(k4CC_vframe);
+	chunkVFrame.m_sizeBytes = compressedBufSize;
+
+	const uint32_t padding = chunkVFrame.getPaddedDataSize() - compressedBufSize;
+
+	result = result && m_state->write(&chunkVFrame);
+	result = result &&
+	         m_state->write((const uint8_t*)pSrcCompressedBuf, compressedBufSize, &loc.m_frameOffset);
+
+	if (padding) {
+		const uint8_t pad[ChunkHeader::kDataPaddingGranularity] = {};
+		result = result && m_state->write(pad, padding);
+	}
+
+	m_state->m_moviList.m_sizeBytes += (sizeof(chunkVFrame) + compressedBufSize + padding);
+
+	if (result) {
+		loc.m_frameSize = compressedBufSize;
+		m_state->m_frameLocations.push_back(loc);
+		m_frameCount++;
+
+		assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
+	}
+
+	return result;
+}
+
+bool LagsFile::WriteFrame(const RasterRef& src) {
+	if (!m_state->m_fp || src.GetDims() != m_frameDims) {
+		return false;
+	}
+
+	FrameLocation loc            = {};
+	uint32_t      compressedSize = 0;
+	uint8_t*      pTempBuf       = m_state->getIntermediateBuf(m_frameDims);
+	bool          result         = true;
+
+	result = result && m_state->seek_end();
+	result = result && m_state->m_encoder.Compress(src, pTempBuf, &compressedSize);
 
 	ChunkHeader chunkVFrame(k4CC_vframe);
 	chunkVFrame.m_sizeBytes = compressedSize;
