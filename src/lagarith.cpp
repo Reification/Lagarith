@@ -83,22 +83,23 @@ bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath, CacheMode cach
 	if (cacheMode == CacheMode::kRaster) {
 		AddEmptyFrames(src.GetFrameCount());
 
-		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+		for (uint32_t f = 0, e = src.GetFrameCount(); f < e; f++) {
 			if (!src.ReadFrame(f, {GetRasterFrame(f), m_frameDims})) {
 				assert(false && "corrupted lags file!");
 				return false;
 			}
 		}
 	} else {
-		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
+		for (uint32_t f = 0, e = src.GetFrameCount(); f < e; f++) {
 			uint32_t compressedSize = 0;
 			if (!src.ReadCompressedFrame(f, nullptr, &compressedSize)) {
 				assert(false && "corrupted lags file!");
 				return false;
 			}
-			uint8_t* pCompressed = new uint8_t[compressedSize];
+			uint8_t* pCompressed = new uint8_t[sizeof(uint32_t) + compressedSize];
+			*((uint32_t*)pCompressed) = compressedSize;
 
-			if (!src.ReadCompressedFrame(f, pCompressed, &compressedSize)) {
+			if (!src.ReadCompressedFrame(f, pCompressed + sizeof(uint32_t), &compressedSize)) {
 				assert(false && "corrupted lags file!");
 				return false;
 			}
@@ -132,7 +133,7 @@ bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
 		}
 	} else {
 		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
-			uint32_t compressedSize = 0;
+			uint32_t    compressedSize = 0;
 			const void* pCompressed    = GetCompressedFrame(f, &compressedSize);
 			if (!pCompressed || !dst.WriteCompressedFrame(pCompressed, compressedSize)) {
 				// should only happen if out of disk space.
@@ -164,11 +165,15 @@ bool VideoSequence::AddFrame(const RasterRef& frame) {
 	} else {
 		RasterBuf intermed(new uint8_t[Codec::GetMaxCompressedSize(m_frameDims)]);
 		uint32_t  compressedSize = 0;
-		result                   = m_encoder.Compress(frame, intermed.get(), &compressedSize);
+
+		result = m_encoder.Compress(frame, intermed.get(), &compressedSize);
 
 		if (result) {
-			uint8_t* pCompressed = new uint8_t[compressedSize];
-			memcpy_s(pCompressed, compressedSize, intermed.get(), compressedSize);
+			uint8_t* pCompressed = new uint8_t[sizeof(uint32_t) + compressedSize];
+
+			*((uint32_t*)pCompressed) = compressedSize;
+			memcpy_s(pCompressed + sizeof(uint32_t), compressedSize, intermed.get(), compressedSize);
+
 			m_frames.push_back(RasterBuf(pCompressed));
 		}
 	}
@@ -184,9 +189,11 @@ bool VideoSequence::AddFrame(const void* pCompressedData, uint32_t compressedSiz
 	bool result = true;
 
 	if (m_cacheMode == CacheMode::kCompressed) {
-		uint8_t* pDstBuf = new uint8_t[compressedSize];
+		uint8_t* pDstBuf = new uint8_t[sizeof(uint32_t) + compressedSize];
 
-		memcpy_s(pDstBuf, compressedSize, pCompressedData, compressedSize);
+		*((uint32_t*)pDstBuf) = compressedSize;
+		memcpy_s(pDstBuf + sizeof(uint32_t), compressedSize, pCompressedData, compressedSize);
+
 		m_frames.push_back(RasterBuf(pDstBuf));
 	} else {
 		const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes();

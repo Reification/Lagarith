@@ -28,7 +28,8 @@ static void runTests(const std::string& packageName) {
 	printf("running tests from %s\n", testWorkingDir.c_str());
 
 	try {
-		LagarithTesting::runTests();
+		const bool assertTestsPass = false;
+		LagarithTesting::runTests(assertTestsPass);
 	} catch (...) {
 		fprintf(stderr, "Exception caught!\n");
 	}

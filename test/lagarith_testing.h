@@ -1,5 +1,5 @@
 #pragma once
 
 namespace LagarithTesting {
-int  runTests();
+int  runTests(bool assertTestsPass);
 }

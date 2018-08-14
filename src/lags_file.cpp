@@ -410,7 +410,7 @@ bool LagsFile::OpenRead(const std::string& path) {
 
 	if (result) {
 		m_frameCount          = m_state->m_strhData.m_length;
-		m_frameDims           = {m_state->m_strfData.m_width, m_state->m_strfData.m_height,
+		m_frameDims  = {(uint16_t)m_state->m_strfData.m_width, (uint16_t)m_state->m_strfData.m_height,
                    (BitsPerPixel)m_state->m_strfData.m_bitCount};
 		m_state->m_moviOffset = _ftelli64(m_state->m_fp) - sizeof(uint32_t);
 	}

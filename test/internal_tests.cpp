@@ -74,9 +74,7 @@ DECLARE_TEST(loadl_epi64_Test) {
 	const __m128i v128low_native = _mm_loadl_epi64(&v128);
 	const __m128i v128low_emul   = lag_mm_loadl_epi64(&v128);
 
-	if (int64x2_t(v128low_native) != int64x2_t(v128low_emul)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(v128low_native), int64x2_t(v128low_emul));
 
 	return true;
 }
@@ -87,9 +85,7 @@ DECLARE_TEST(setr_epi8_Test) {
 	const __m128i v128_native = _mm_setr_epi8(ALL_16_BYTES);
 	const __m128i v128_emul   = lag_mm_setr_epi8(ALL_16_BYTES);
 
-	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(v128_native), int64x2_t(v128_emul));
 
 	return true;
 #	undef ALL_16_BYTES
@@ -145,9 +141,7 @@ DECLARE_TEST(alignr_epi8_Test) {
 			AR_CASE(32);
 		}
 
-		if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
-			return false;
-		}
+		CHECK_EQUAL(int64x2_t(v128_native), int64x2_t(v128_emul));
 	}
 
 	return true;
@@ -160,9 +154,7 @@ DECLARE_TEST(unpacklo_epi64_Test) {
 	const __m128i v128_native = _mm_unpacklo_epi64(a128, b128);
 	const __m128i v128_emul   = lag_mm_unpacklo_epi64(a128, b128);
 
-	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(v128_native), int64x2_t(v128_emul));
 
 	return true;
 }
@@ -180,9 +172,7 @@ DECLARE_TEST(lddqu_si128_Test) {
 	const __m128i v128_native = _mm_lddqu_si128(pData);
 	const __m128i v128_emul   = lag_mm_lddqu_si128(pData);
 
-	if (int64x2_t(v128_native) != int64x2_t(v128_emul)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(v128_native), int64x2_t(v128_emul));
 
 	return true;
 }
@@ -200,9 +190,7 @@ DECLARE_TEST(shufflelo_epi16_Test) {
 		return false;
 	}
 
-	if (int64x2_t(s128_native1) != int64x2_t(s128_emul1)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(s128_native1), int64x2_t(s128_emul1));
 
 	return true;
 }
@@ -218,13 +206,9 @@ DECLARE_TEST(shuffle_epi8_Test) {
 	const __m128i s128_native1 = _mm_shuffle_epi8(v128, shuffle1);
 	const __m128i s128_emul1   = lag_mm_shuffle_epi8(v128, shuffle1);
 
-	if (int64x2_t(s128_native0) != int64x2_t(s128_emul0)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(s128_native0), int64x2_t(s128_emul0));
 
-	if (int64x2_t(s128_native1) != int64x2_t(s128_emul1)) {
-		return false;
-	}
+	CHECK_EQUAL(int64x2_t(s128_native1), int64x2_t(s128_emul1));
 
 	return true;
 }
@@ -236,10 +220,9 @@ DECLARE_TEST(emulu_Test) {
 		uint64_t prodEx = __emulu(a, b);
 		uint64_t prodAc = lag__emulu(a, b);
 
-		if (prodEx != prodAc) {
-			return false;
-		}
+		CHECK_EQUAL(prodEx, prodAc);
 	}
+
 	return true;
 }
 

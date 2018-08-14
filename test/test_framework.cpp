@@ -3,8 +3,8 @@
 #include <ctime>
 #include <chrono>
 
-int LagarithTesting::runTests() {
-	return Test::runTests();
+int LagarithTesting::runTests(bool breakOnFailure) {
+	return Test::runTests(breakOnFailure);
 }
 
 Test::Test(const char* testName, const TestFunction& testFunction)
@@ -24,11 +24,19 @@ static std::string getDateTime() {
 	return std::string(buffer);
 }
 
+// static 
+bool Test::OnFail() {
+	assert(!Test::GetBreakOnFailure());
+	return false;
+}
+
 // static
-int Test::runTests() {
+int Test::runTests(bool breakOnFailure) {
 	int testsRun    = 0;
 	int testsPassed = 0;
 	using namespace std::chrono;
+
+	s_breakOnFailure() = breakOnFailure;
 
 	std::string curTimeStr = getDateTime();
 	printf("tests starting: %s\n\n", curTimeStr.c_str());
