@@ -399,7 +399,7 @@ bool LagsFile::OpenRead(const std::string& path) {
 	         chunkSTRF.m_sizeBytes == sizeof(STRFChunkData);
 	result = result && m_state->read(&(m_state->m_strfData)) &&
 	         m_state->m_strfData.m_compression == k4CC_LAGS &&
-	         (m_state->m_strfData.m_bitCount == 24 || m_state->m_strfData.m_bitCount == 32);
+	         (m_state->m_strfData.m_bitCount == (uint16_t)BitsPerPixel::kRGB);
 
 #if PAD_HEADER_WITH_JUNK_CHUNK
 	result = result && m_state->read(&chunkJUNK) && chunkJUNK.m_fourCC == k4CC_JUNK;
@@ -409,7 +409,7 @@ bool LagsFile::OpenRead(const std::string& path) {
 	result = result && m_state->read(&(m_state->m_moviList));
 
 	if (result) {
-		m_frameCount          = m_state->m_strhData.m_length;
+		m_frameCount = m_state->m_strhData.m_length;
 		m_frameDims  = {(uint16_t)m_state->m_strfData.m_width, (uint16_t)m_state->m_strfData.m_height,
                    (BitsPerPixel)m_state->m_strfData.m_bitCount};
 		m_state->m_moviOffset = _ftelli64(m_state->m_fp) - sizeof(uint32_t);
@@ -482,10 +482,13 @@ bool LagsFile::OpenWrite(const std::string& path, const FrameDimensions& frameDi
 
 	ChunkHeader chunkSTRF(k4CC_strf);
 
-	m_state->m_strfData.m_bitCount  = (int16_t)frameDims.bpp;
 	m_state->m_strfData.m_width     = frameDims.w;
 	m_state->m_strfData.m_height    = frameDims.h;
-	m_state->m_strfData.m_sizeImage = frameDims.GetSizeBytes();
+
+	// regardless of source, output is 24 bits
+	//m_state->m_strfData.m_bitCount = (int16_t) frameDims.bpp;
+	m_state->m_strfData.m_bitCount  = (uint16_t)BitsPerPixel::kRGB;
+	m_state->m_strfData.m_sizeImage = frameDims.w * frameDims.h * (m_state->m_strfData.m_bitCount/8);
 
 	m_state->m_moviList             = ListHeader(k4CC_movi);
 	m_state->m_moviList.m_sizeBytes = sizeof(uint32_t);
@@ -538,10 +541,10 @@ bool LagsFile::ReadCompressedFrame(uint32_t frameIdx, void* pDstCompressedBuf,
 	bool     result         = true;
 
 	if (pDstCompressedBuf) {
-		result = result && m_state->seek_frame(frameIdx, &compressedSize);
+		result                 = result && m_state->seek_frame(frameIdx, &compressedSize);
 		result                 = result && m_state->read((uint8_t*)pDstCompressedBuf, compressedSize);
 		*pCompressedBufSizeOut = compressedSize;
-	} else if ( frameIdx < m_frameCount ) {
+	} else if (frameIdx < m_frameCount) {
 		*pCompressedBufSizeOut = m_state->m_frameLocations[frameIdx].m_frameSize;
 	} else {
 		result = false;
@@ -553,7 +556,7 @@ bool LagsFile::ReadCompressedFrame(uint32_t frameIdx, void* pDstCompressedBuf,
 bool LagsFile::ReadFrame(uint32_t frameIdx, const RasterRef& dst) {
 	assert(m_state->m_frameLocations.size() == m_frameCount && "Internal frame accounting error!");
 
-	if (frameIdx >= m_frameCount || !m_state->m_fp || dst.GetDims() != m_frameDims) {
+	if (frameIdx >= m_frameCount || !m_state->m_fp || !dst.GetDims().IsRectEqual(m_frameDims)) {
 		return false;
 	}
 
@@ -606,7 +609,7 @@ bool LagsFile::WriteCompressedFrame(const void* pSrcCompressedBuf, uint32_t comp
 }
 
 bool LagsFile::WriteFrame(const RasterRef& src) {
-	if (!m_state->m_fp || src.GetDims() != m_frameDims) {
+	if (!m_state->m_fp || !src.GetDims().IsRectEqual(m_frameDims)) {
 		return false;
 	}
 

@@ -41,6 +41,8 @@ struct FrameDimensions {
 
 	bool operator!=(const FrameDimensions& rhs) const { return !operator==(rhs); }
 
+	bool IsRectEqual(const FrameDimensions& rhs) const { return w == rhs.w && h == rhs.h; }
+
 	bool IsValid() const {
 		return w && h && (bpp == BitsPerPixel::kRGB || bpp == BitsPerPixel::kRGBX);
 	}
@@ -117,6 +119,8 @@ public:
 	const FrameDimensions& GetDims() const { return m_dims; }
 
 	bool IsConst() const { return !!m_isConst; }
+
+	bool IsValid() const { return m_dims.IsValid() && m_ref.pRGBX; }
 
 private:
 	union Ref {
@@ -289,8 +293,9 @@ public:
 
 	//! instantiate and attempt to load video file.
 	explicit VideoSequence(const std::string& lagsFilePath,
+	                       BitsPerPixel       cacheBPP  = BitsPerPixel::kRGBX,
 	                       CacheMode          cacheMode = CacheMode::kRaster) {
-		LoadLagsFile(lagsFilePath, cacheMode);
+		LoadLagsFile(lagsFilePath, cacheBPP, cacheMode);
 	}
 
 	//! instantiate and initialize frame size, allocate frameCount frames if non-zero
@@ -316,7 +321,8 @@ public:
 	/*! will always initialize or destructively reinitialize the video sequence.
 	 *returns true on success, false for missing or incompatible file.
 	 */
-	bool LoadLagsFile(const std::string& lagsFilePath, CacheMode cacheMode = CacheMode::kRaster);
+	bool LoadLagsFile(const std::string& lagsFilePath, BitsPerPixel cacheBPP = BitsPerPixel::kRGBX,
+	                  CacheMode cacheMode = CacheMode::kRaster);
 
 	//! returns true on success, false if file can't be saved or if current frame count is zero.
 	bool SaveLagsFile(const std::string& lagsFilePath) const;
@@ -328,7 +334,9 @@ public:
 	 * returns nullptr if frameIndex out of range or sequence is in compressed mode
 	 */
 	uint8_t* GetRasterFrame(uint32_t frameIndex) const {
-		return (m_cacheMode == CacheMode::kRaster && (frameIndex < m_frames.size())) ? m_frames[frameIndex].get() : nullptr;
+		return (m_cacheMode == CacheMode::kRaster && (frameIndex < m_frames.size()))
+		         ? m_frames[frameIndex].get()
+		         : nullptr;
 	}
 
 	/*! returns pointer to cached compressed frame at specified index.

@@ -193,16 +193,16 @@ bool Codec::Decompress(const void* src, uint32_t compressedFrameSizeBytes, const
 		if (!DecompressBegin(dst.GetDims())) {
 			return false;
 		}
-	} else if (!buffer2 || dst.GetDims() != FrameDimensions({(uint16_t)width, (uint16_t)height,
-	                                                         (BitsPerPixel)format})) {
+	} else if (!buffer2 || !dst.GetDims().IsRectEqual(FrameDimensions({(uint16_t)width, (uint16_t)height}))) {
 		// format changed or last call was to Compress() - must call reset first.
 		// we don't want silent incursion of reset/setup overhead.
 		// the cost must be clear in the API
 		return false;
 	}
 
-	out             = dst.GetBufRef({(uint16_t)width, (uint16_t)height, (BitsPerPixel)format});
+	out             = dst.GetBufRef(dst.GetDims());
 	in              = (const uint8_t*)src;
+	format          = (uint32_t)dst.GetDims().bpp;
 	compressed_size = compressedFrameSizeBytes;
 
 	assert(width && height && format && in && out &&

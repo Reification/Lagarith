@@ -421,11 +421,11 @@ static bool testVideoSequenceAvi(uint32_t channelCount, bool compressed) {
 
 	RasterSequence seq1;
 
-	CHECK_MSG(seq1.LoadLagsFile(lagsPath, cacheMode), "failed loading %s", lagsPath);
+	CHECK_MSG(seq1.LoadLagsFile(lagsPath, (BitsPerPixel)(channelCount * 8), cacheMode), "failed loading %s", lagsPath);
 
 	const FrameDimensions dims1 = seq1.GetFrameDimensions();
 
-	CHECK_EQUAL(dims0, dims1);
+	CHECK(dims0.IsRectEqual(dims1));
 	CHECK_EQUAL(seq0.GetFrameCount(), seq1.GetFrameCount());
 
 	const uint32_t frameSizeBytes = dims0.GetSizeBytes();

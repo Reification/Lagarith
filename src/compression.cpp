@@ -147,7 +147,6 @@ uint32_t Codec::HandleTwoCompressionThreads(uint32_t chan_size) {
 
 // Encode a typical RGB24 frame, input can be RGB24 or RGB32
 void Codec::CompressRGB24(unsigned int* frameSizeBytesOut) {
-	//const uint8_t* src       = in;
 	const uint32_t pixels    = width * height;
 	const uint32_t block_len = align_round(pixels + 32, 16);
 	uint8_t*       bplane    = buffer;
@@ -237,16 +236,16 @@ bool Codec::Compress(const RasterRef& src, void* dst, uint32_t* frameSizeBytesOu
 		if (!CompressBegin(src.GetDims())) {
 			return false;
 		}
-	} else if (!isCompressing() || src.GetDims() != FrameDimensions({(uint16_t)width, (uint16_t)height,
-	                                                         (BitsPerPixel)format})) {
+	} else if (!isCompressing() || !src.GetDims().IsRectEqual(FrameDimensions({(uint16_t)width, (uint16_t)height}))) {
 		// format changed or last call was to Decompress() - must call reset first.
 		// we don't want silent incursion of reset/setup overhead.
 		// the cost must be clear in the API
 		return false;
 	}
 
-	in  = src.GetBufConstRef({(uint16_t)width, (uint16_t)height, (BitsPerPixel)format});
+	in  = src.GetBufConstRef(src.GetDims());
 	out = (uint8_t*)dst;
+	format = (uint32_t)src.GetDims().bpp;
 
 	assert(width && height && format && in && out && frameSizeBytesOut && "invalid frame parameters");
 
