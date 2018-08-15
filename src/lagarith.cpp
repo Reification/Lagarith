@@ -87,7 +87,7 @@ bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath, BitsPerPixel c
 	}
 
 	if (cacheMode == CacheMode::kRaster) {
-		AddEmptyFrames(src.GetFrameCount());
+		AllocateRasterFrames(src.GetFrameCount());
 
 		for (uint32_t f = 0, e = src.GetFrameCount(); f < e; f++) {
 			if (!src.ReadFrame(f, {GetRasterFrame(f), m_frameDims})) {
@@ -167,11 +167,11 @@ static void copyRaster(const RasterRef& src, const RasterRef& dst) {
 
 	const uint32_t pixCount = src.GetDims().GetPixelCount();
 
-	if (src.GetDims().bpp == BitsPerPixel::kRGBX) {
+	if (src.GetDims().bpp == BitsPerPixel::kRGB) {
 		const uint8_t* spx = src.GetBufConstRef(src.GetDims());
 		uint32_t*      dpx = (uint32_t*)dst.GetBufRef(dst.GetDims());
 
-		assert(dst.GetDims().bpp == BitsPerPixel::kRGB);
+		assert(dst.GetDims().bpp == BitsPerPixel::kRGBX);
 
 		for (uint32_t p = 0; p < pixCount; ++p, spx += 3) {
 			dpx[p] = 0xff00000000 | ((uint32_t)spx[2] << 16) | ((uint32_t)spx[1] << 8) | spx[0];
@@ -180,16 +180,16 @@ static void copyRaster(const RasterRef& src, const RasterRef& dst) {
 		return;
 	}
 
-	if (src.GetDims().bpp == BitsPerPixel::kRGB) {
+	if (src.GetDims().bpp == BitsPerPixel::kRGBX) {
 		const uint32_t* spx = (const uint32_t*)src.GetBufConstRef(src.GetDims());
 		uint8_t*        dpx = dst.GetBufRef(dst.GetDims());
 
-		assert(dst.GetDims().bpp == BitsPerPixel::kRGBX);
+		assert(dst.GetDims().bpp == BitsPerPixel::kRGB);
 
 		for (uint32_t p = 0; p < pixCount; ++p, dpx += 3) {
-			dpx[0] = (uint8_t)(*spx);
-			dpx[1] = (uint8_t)(*spx >> 8);
-			dpx[2] = (uint8_t)(*spx >> 16);
+			dpx[0] = (uint8_t)(spx[p]);
+			dpx[1] = (uint8_t)(spx[p] >> 8);
+			dpx[2] = (uint8_t)(spx[p] >> 16);
 		}
 
 		return;
@@ -281,8 +281,7 @@ bool VideoSequence::DecodeFrame(uint32_t frameIndex, const RasterRef& dstBuf) {
 	return result;
 }
 
-const void* VideoSequence::GetCompressedFrame(uint32_t  frameIndex,
-                                              uint32_t* pCompressedSizeOut) const {
+void* VideoSequence::GetCompressedFrame(uint32_t frameIndex, uint32_t* pCompressedSizeOut) const {
 	const void* pCompressed =
 	  (m_cacheMode == CacheMode::kCompressed && (frameIndex < m_frames.size()))
 	    ? m_frames[frameIndex].get()
@@ -296,11 +295,12 @@ const void* VideoSequence::GetCompressedFrame(uint32_t  frameIndex,
 	return nullptr;
 }
 
-bool VideoSequence::AddEmptyFrames(uint32_t frameCount) {
+bool VideoSequence::AllocateRasterFrames(uint32_t frameCount) {
 	if (m_cacheMode == CacheMode::kRaster) {
 		if (const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes()) {
 			for (uint32_t i = 0; i < frameCount; i++) {
 				uint8_t* pRaster = new uint8_t[frameSizeBytes];
+
 				memset(pRaster, 0, frameSizeBytes);
 				m_frames.push_back(RasterBuf(pRaster));
 			}
@@ -310,6 +310,20 @@ bool VideoSequence::AddEmptyFrames(uint32_t frameCount) {
 	}
 
 	return false;
+}
+
+void* VideoSequence::AllocateCompressedFrame(uint32_t compressedSize) {
+	if (m_cacheMode == CacheMode::kCompressed) {
+		uint8_t* pCompressedBuf      = new uint8_t[sizeof(uint32_t) + compressedSize];
+
+		*((uint32_t*)pCompressedBuf) = compressedSize;
+
+		m_frames.push_back(RasterBuf(pCompressedBuf));
+
+		return pCompressedBuf + sizeof(uint32_t);
+	}
+
+	return nullptr;
 }
 
 } // namespace Lagarith

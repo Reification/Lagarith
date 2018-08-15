@@ -19,6 +19,17 @@
 
 using namespace Lagarith;
 
+static_assert(sizeof(PixelRGB) == 3, "That's not 24 bits");
+static_assert(sizeof(PixelRGBX) == 4, "That's not 32 bits");
+
+inline bool operator==(const PixelRGB& rgb, const PixelRGBX& rgbx) {
+	return rgb.r == rgbx.bgrx.r && rgb.g == rgbx.bgrx.g && rgb.b == rgbx.bgrx.b;
+}
+
+inline bool operator==(const PixelRGBX& rgbx, const PixelRGB& rgb) {
+	return rgb == rgbx;
+}
+
 //
 // simple wrapper on stb image load and save.
 //
@@ -231,7 +242,7 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	          "failed sequence: %d x %dx%dx%d", srcFrames.GetFrameCount(), frameDims.w, frameDims.h,
 	          frameDims.GetBytesPerPixel())
 
-	decompressedFrames.AddEmptyFrames(srcFrames.GetFrameCount());
+	decompressedFrames.AllocateRasterFrames(srcFrames.GetFrameCount());
 
 	compressedBuf.resize(
 	  (size_t)(Codec::GetMaxCompressedSize(frameDims) * srcFrames.GetFrameCount()));
@@ -355,7 +366,8 @@ static bool testVideoSequenceCache(uint32_t channelCount) {
 		const uint8_t* pSrc = srcFrames.GetRasterFrame(f);
 
 		CHECK_MSG(testEncDec.AddFrame({pSrc, frameDims}), "failed adding %s fmt frame %d", fmtName, f);
-		CHECK_MSG(!testEncDec.GetRasterFrame(f), "compressed %s seq should not provide raster pointers.", fmtName);
+		CHECK_MSG(!testEncDec.GetRasterFrame(f),
+		          "compressed %s seq should not provide raster pointers.", fmtName);
 		CHECK_MSG(testEncDec.DecodeFrame(f, {decoded.m_pBits, frameDims}),
 		          "failed decoding %s fmt frame %d", fmtName, f);
 		CHECK_MSG(!memcmp(decoded.m_pBits, pSrc, frameDims.GetSizeBytes()),
@@ -384,12 +396,54 @@ static bool testVideoSequenceCache(uint32_t channelCount) {
 	CHECK_MSG(!memcmp(decoded.m_pBits, srcFrames.GetRasterFrame(0), frameDims.GetSizeBytes()),
 	          "decode straight copy produced corrupted data!");
 
+	if (channelCount == 3) {
+		const PixelRGB*              pSrc = (const PixelRGB*)srcFrames.GetRasterFrame(0);
+		std::unique_ptr<PixelRGBX[]> pTranscode(new PixelRGBX[frameDims.GetPixelCount()]);
+		PixelRGBX*                   pTC = pTranscode.get();
+
+		CHECK_MSG(srcFrames.DecodeFrame(0, {pTC, frameDims}), "transcoding from RGB to RGBX failed");
+
+		for (uint32_t p = 0, pc = frameDims.GetPixelCount(); p < pc; p++) {
+			CHECK_EQUAL_MSG(pSrc[p], pTC[p],
+			                "mismatch transcoding from RGB to RGBX (%d, %d, %d) vs. (%d, %d, %d)",
+			                pSrc[p].r, pSrc[p].g, pSrc[p].b, pTC[p].bgrx.r, pTC[p].bgrx.g, pTC[p].bgrx.b);
+		}
+
+	} else if (channelCount == 4) {
+		const PixelRGBX*            pSrc = (const PixelRGBX*)srcFrames.GetRasterFrame(0);
+		std::unique_ptr<PixelRGB[]> pTranscode(new PixelRGB[frameDims.GetPixelCount()]);
+		PixelRGB*                   pTC = pTranscode.get();
+
+		CHECK_MSG(srcFrames.DecodeFrame(0, {pTC, frameDims}), "transcoding from RGBX to RGB failed");
+
+		for (uint32_t p = 0, pc = frameDims.GetPixelCount(); p < pc; p++) {
+			CHECK_EQUAL_MSG(pSrc[p], pTC[p],
+			                "mismatch transcoding from RGBX to RGB (%d, %d, %d) vs. (%d, %d, %d)",
+			                pSrc[p].bgrx.r, pSrc[p].bgrx.g, pSrc[p].bgrx.b, pTC[p].r, pTC[p].g, pTC[p].b);
+		}
+	} else {
+		FAIL_MSG("internal testing error - channelCount should only be 3 or 4");
+	}
+
+	{
+		const uint32_t compSize      = 5937;
+		uint32_t       checkCompSize = 0;
+		void*          pComp         = nullptr;
+		void*          pCheckComp    = nullptr;
+
+		CHECK((pComp = testCopyComp.AllocateCompressedFrame(compSize)));
+		CHECK((pCheckComp =
+		         testCopyComp.GetCompressedFrame(testCopyComp.GetFrameCount() - 1, &checkCompSize)));
+		CHECK_EQUAL(pComp, pCheckComp);
+		CHECK_EQUAL(compSize, checkCompSize);
+	}
+
 	return true;
 }
 
 static bool testVideoSequenceAvi(uint32_t channelCount, bool compressed) {
-	const char* fmtName       = (channelCount == 3) ? "rgb24" : "rgb32";
-	const char* modeName      = compressed ? "cmpr" : "rstr";
+	const char*                    fmtName  = (channelCount == 3) ? "rgb24" : "rgb32";
+	const char*                    modeName = compressed ? "cmpr" : "rstr";
 	const VideoSequence::CacheMode cacheMode =
 	  compressed ? VideoSequence::CacheMode::kCompressed : VideoSequence::CacheMode::kRaster;
 	RasterSequence seq0;
@@ -421,7 +475,8 @@ static bool testVideoSequenceAvi(uint32_t channelCount, bool compressed) {
 
 	RasterSequence seq1;
 
-	CHECK_MSG(seq1.LoadLagsFile(lagsPath, (BitsPerPixel)(channelCount * 8), cacheMode), "failed loading %s", lagsPath);
+	CHECK_MSG(seq1.LoadLagsFile(lagsPath, (BitsPerPixel)(channelCount * 8), cacheMode),
+	          "failed loading %s", lagsPath);
 
 	const FrameDimensions dims1 = seq1.GetFrameDimensions();
 

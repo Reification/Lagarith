@@ -52,6 +52,7 @@ struct FrameDimensions {
 	uint32_t GetSizeBytes() const { return w * h * GetBytesPerPixel(); }
 };
 
+
 //! 24 bit pixel byte order of rasters is always b, g, r
 struct PixelRGB {
 	uint8_t b;
@@ -342,7 +343,7 @@ public:
 	/*! returns pointer to cached compressed frame at specified index.
 	 * returns nullptr if frameIndex out of range or sequence is in raster mode
 	 */
-	const void* GetCompressedFrame(uint32_t frameIndex, uint32_t* pCompressedSizeOut) const;
+	void* GetCompressedFrame(uint32_t frameIndex, uint32_t* pCompressedSizeOut) const;
 
 	/*!
 	 * allocates a new frame and copies or decodes from pCompressedData into it.
@@ -370,7 +371,21 @@ public:
 	 * - Initialize() or LoadLagsFile() has not been successfully called
 	 * - CacheMode is kCompressed
 	 */
-	bool AddEmptyFrames(uint32_t frameCount);
+	bool AllocateRasterFrames(uint32_t frameCount);
+
+	/*! allocates new compressed frame buffer
+	 * only valid when CacheMode is kCompressed
+	 * returns newly allocated buffer on success
+	 * returns nullptr if
+	 * - Initialize() or LoadLagsFile() has not been successfully called
+	 * - CacheMode is kRaster
+	 * note: 
+	 * compressed size must be final, known size of compressed data, not an estimate.
+	 * when pointer for added frame is fetched with 
+	 * GetCompressedFrame(uint32_t frameIdx, uint32_t* pCompressedSizeOut)
+	 * compressedSize passed in parameters here will be written into pCompressedSizeOut
+	 */
+	void* AllocateCompressedFrame(uint32_t compressedSize);
 
 	//! returns currently configured frame dimensions
 	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
