@@ -90,7 +90,7 @@ bool VideoSequence::LoadLagsFile(const std::string& lagsFilePath, BitsPerPixel c
 		AllocateRasterFrames(src.GetFrameCount());
 
 		for (uint32_t f = 0, e = src.GetFrameCount(); f < e; f++) {
-			if (!src.ReadFrame(f, {GetRasterFrame(f), m_frameDims})) {
+			if (!src.ReadFrame(f, GetRasterFrameRef(f))) {
 				assert(false && "corrupted lags file!");
 				return false;
 			}
@@ -130,7 +130,7 @@ bool VideoSequence::SaveLagsFile(const std::string& lagsFilePath) const {
 
 	if (m_cacheMode == CacheMode::kRaster) {
 		for (uint32_t f = 0, e = GetFrameCount(); f < e; f++) {
-			if (!dst.WriteFrame({GetRasterFrame(f), m_frameDims})) {
+			if (!dst.WriteFrame(GetRasterFrameRef(f))) {
 				// should only happen if out of disk space.
 				dst.Close();
 				remove(lagsFilePath.c_str());
@@ -271,7 +271,7 @@ bool VideoSequence::DecodeFrame(uint32_t frameIndex, const RasterRef& dstBuf) {
 	bool result = true;
 
 	if (m_cacheMode == CacheMode::kRaster) {
-		copyRaster({GetRasterFrame(frameIndex), m_frameDims}, dstBuf);
+		copyRaster(GetRasterFrameRef(frameIndex), dstBuf);
 	} else {
 		uint32_t    compressedSize = 0;
 		const void* pSrc           = GetCompressedFrame(frameIndex, &compressedSize);
@@ -295,13 +295,26 @@ void* VideoSequence::GetCompressedFrame(uint32_t frameIndex, uint32_t* pCompress
 	return nullptr;
 }
 
+uint8_t* VideoSequence::AllocateRasterFrame() {
+	if (m_cacheMode == CacheMode::kRaster) {
+		if (const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes()) {
+			uint8_t* pRaster = new uint8_t[frameSizeBytes];
+
+			m_frames.push_back(RasterBuf(pRaster));
+
+			return pRaster;
+		}
+	}
+
+	return nullptr;
+}
+
 bool VideoSequence::AllocateRasterFrames(uint32_t frameCount) {
 	if (m_cacheMode == CacheMode::kRaster) {
 		if (const uint32_t frameSizeBytes = m_frameDims.GetSizeBytes()) {
 			for (uint32_t i = 0; i < frameCount; i++) {
 				uint8_t* pRaster = new uint8_t[frameSizeBytes];
 
-				memset(pRaster, 0, frameSizeBytes);
 				m_frames.push_back(RasterBuf(pRaster));
 			}
 
@@ -314,7 +327,7 @@ bool VideoSequence::AllocateRasterFrames(uint32_t frameCount) {
 
 void* VideoSequence::AllocateCompressedFrame(uint32_t compressedSize) {
 	if (m_cacheMode == CacheMode::kCompressed) {
-		uint8_t* pCompressedBuf      = new uint8_t[sizeof(uint32_t) + compressedSize];
+		uint8_t* pCompressedBuf = new uint8_t[sizeof(uint32_t) + compressedSize];
 
 		*((uint32_t*)pCompressedBuf) = compressedSize;
 

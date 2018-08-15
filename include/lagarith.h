@@ -331,13 +331,23 @@ public:
 	//! returns current allocated frame count
 	uint32_t GetFrameCount() const { return (uint32_t)m_frames.size(); }
 
-	/*! returns pointer to cached raster frame at specified index.
+	/*! returns pointer to cached raster for frame at specified index.
 	 * returns nullptr if frameIndex out of range or sequence is in compressed mode
 	 */
 	uint8_t* GetRasterFrame(uint32_t frameIndex) const {
 		return (m_cacheMode == CacheMode::kRaster && (frameIndex < m_frames.size()))
 		         ? m_frames[frameIndex].get()
 		         : nullptr;
+	}
+
+	/*! returns pointer to cached raster packaged in RasterRef for frame at specified index.
+	 * returns invalid RasterRef if frameIndex out of range or sequence is in compressed mode
+	 */
+	RasterRef GetRasterFrameRef(uint32_t frameIndex) const {
+		if (uint8_t* pRaster = GetRasterFrame(frameIndex)) {
+			return {pRaster, m_frameDims};
+		}
+		return RasterRef();
 	}
 
 	/*! returns pointer to cached compressed frame at specified index.
@@ -364,7 +374,16 @@ public:
 	 */
 	bool AddFrame(const RasterRef& frame);
 
-	/*! allocates frameCount new frames.
+	/*! allocates a single new raster frame
+	 * only valid when CacheMode is kRaster
+	 * returns pointer to new raster buffer on success
+	 * returns nullptr if
+	 * - Initialize() or LoadLagsFile() has not been successfully called
+	 * - CacheMode is kCompressed
+	 */
+	uint8_t* AllocateRasterFrame();
+
+	/*! allocates frameCount new raster frames.
 	 * only valid when CacheMode is kRaster
 	 * returns true on success
 	 * returns false if

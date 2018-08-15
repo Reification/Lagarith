@@ -251,12 +251,13 @@ static bool testEncodeDecode(uint32_t channelCount) {
 	{
 		std::unique_ptr<Codec> pCodec(new Codec());
 
-		const uint8_t* pSrcBits = nullptr;
-		uint8_t*       pDstBits = compressedBuf.data();
-		uint32_t       i        = 0;
+		uint8_t* pDstBits = compressedBuf.data();
+		uint32_t i        = 0;
 
-		for (; !!(pSrcBits = srcFrames.GetRasterFrame(i)); i++) {
-			CHECK_MSG(pCodec->Compress({pSrcBits, frameDims}, pDstBits, &(compressedFrameSizes[i])),
+		for (; i < srcFrames.GetFrameCount(); i++) {
+			RasterRef srcRaster = srcFrames.GetRasterFrameRef(i);
+
+			CHECK_MSG(pCodec->Compress(srcRaster, pDstBits, &(compressedFrameSizes[i])),
 			          "failed compressing frame %d/%d", i, srcFrames.GetFrameCount());
 
 			compressedFrames[i] = pDstBits;
@@ -272,15 +273,12 @@ static bool testEncodeDecode(uint32_t channelCount) {
 
 	// decode execution
 	{
-		std::unique_ptr<Codec> pCode(new Codec());
+		Codec    codec;
 
-		uint8_t* pDstBits = nullptr;
-		uint32_t i        = 0;
-
-		for (; !!(pDstBits = decompressedFrames.GetRasterFrame(i)); i++) {
-			CHECK_MSG(
-			  pCode->Decompress(compressedFrames[i], compressedFrameSizes[i], {pDstBits, frameDims}),
-			  "failed decoding frame %d/%d", i, decompressedFrames.GetFrameCount());
+		for (uint32_t i = 0; i < decompressedFrames.GetFrameCount(); i++) {
+			RasterRef dstRaster = decompressedFrames.GetRasterFrameRef(i);
+			CHECK_MSG(codec.Decompress(compressedFrames[i], compressedFrameSizes[i], dstRaster),
+			          "failed decoding frame %d/%d", i, decompressedFrames.GetFrameCount());
 		}
 	}
 
