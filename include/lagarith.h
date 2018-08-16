@@ -251,6 +251,7 @@ public:
 	/*! reads LAGS-encoded video frame from file into destination buffer, skipping decoding step.
 	 * target buffer should be at least as large as specified by Codec::GetMaxCompressedSize()
 	 * if pDstCompressedBuf is null, pCompressedBufSize out is set and then true is returned.
+	 * 
 	 */
 	bool ReadCompressedFrame(uint32_t frameIdx, void* pDstCompressedBuf,
 	                         uint32_t* pCompressedBufSizeOut);
@@ -383,6 +384,14 @@ public:
 	 */
 	uint8_t* AllocateRasterFrame();
 
+	//! convenience wrapper - returns RasterRef for newly allocated raster frame
+	RasterRef AllocateRasterFrameRef() {
+		if (uint8_t* pRaster = AllocateRasterFrame()) {
+			return {pRaster, m_frameDims};
+		}
+		return RasterRef();
+	}
+
 	/*! allocates frameCount new raster frames.
 	 * only valid when CacheMode is kRaster
 	 * returns true on success
@@ -405,6 +414,15 @@ public:
 	 * compressedSize passed in parameters here will be written into pCompressedSizeOut
 	 */
 	void* AllocateCompressedFrame(uint32_t compressedSize);
+
+	/*! release all codec resources.
+	 * does not prevent further calls that require a codec
+	 * as they initialize on demand.
+	 */
+	void ResetCodecs() {
+		m_encoder.Reset();
+		m_decoder.Reset();
+	}
 
 	//! returns currently configured frame dimensions
 	const FrameDimensions& GetFrameDimensions() const { return m_frameDims; }
