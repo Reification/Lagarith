@@ -19,10 +19,7 @@ foreach(BUILD_CONFIG ${CMAKE_CONFIGURATION_TYPES})
 	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${BUILD_SUFFIX} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY})
 endforeach(BUILD_CONFIG)
 
-#if we have the default install prefix (which we will never use) set to a reasonable test location
-if("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files")
-  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
-endif()
+set(INSTALL_TO_REIFY_OMNIBUS FALSE CACHE BOOL "Set install location for iterative testing with ReifyOminbus project")
 
 set(BUILD_TEST FALSE CACHE BOOL "Build simple manually run test")
 
@@ -43,8 +40,28 @@ elseif(ANDROID)
 elseif(APPLE)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -arch:AVX2")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++1y")
+	message(FATAL_ERROR "OSX support not yet implemented.")
 else()
-  message(FATAL_ERROR "${CMAKE_SYSTEM_NAME} NYI")
+  message(FATAL_ERROR "Only windows and android 64-bit configs supported.")
+endif()
+
+if(NOT ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8"))
+	message(FATAL_ERROR "Only windows and android 64-bit configuraitons supported")
+endif()
+
+#if we have the default install prefix (which we will never use) set to a reasonable test location
+if("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files")
+	if(INSTALL_TO_REIFY_OMNIBUS)
+		if(WIN32)
+			set(_PLAT "win64")
+		elseif(ANDROID)
+			set(_PLAT "android")
+		endif()
+  	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/../ReifyOmnibus/build/${_PLAT}/ext" CACHE STRING "" FORCE)
+	  unset(_PLAT)
+	else()
+	  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
+	endif()
 endif()
 
 file(GLOB LIB_SRC "${LIB_SRC_DIR}/*.cpp" "${LIB_SRC_DIR}/*.inl")
