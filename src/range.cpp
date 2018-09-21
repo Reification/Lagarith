@@ -151,7 +151,7 @@ uint32_t CompressClass::Encode(const uint8_t* in, uint8_t* out, const uint32_t l
 			rb += rb;                                                                                    \
 			shifter += 2;                                                                                \
 		}                                                                                              \
-		int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);                                      \
+		int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);                                   \
 		tmp -= rb;                                                                                     \
 		if (tmp < 0)                                                                                   \
 			tmp = 0;                                                                                     \
@@ -288,74 +288,78 @@ void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out, const uint
 		memset(out, 0, length);
 	}
 
-	try {
-		if (level == 0) {
-			// This is the simplest verion of the optimized range decoder to understand,
-			// since it does not have the RLE decoder rolled in.
-			do {
-				uint32_t help = range >> shift;
-				if (low < help * range_bottom) { // Decode a zero value, most common case
-					range  = help * range_bottom;
-					*out++ = 0;
-				} else {
-					if (low < range_top * help) { // The value is > 0 and < 255
-						// Perform a reciprocal multiply to get tmp <= low/help.
-						// The value must be <= for the linear search to work.
-						int      shifter = hash_shift;
-						int      rb      = range_bottom;
-						uint32_t s       = help;
-						// If the value is too large for the r_table,
-						// do roughly (low/(help>>x))>>x, where x is how many
-						// places help got shifted to make it fall in the range.
-						while (s >= 2048) {
-							s += 3;   // Round up divisor so result will be <= low/help.
-							s >>= 2;  // Shifting 2 places gave best performance in testing.
-							rb += rb; // Shift up range_bottom so hash_shift can be merged with
-							rb += rb; // the reciprocal correction shift.
-							shifter += 2;
-						}
-						// Perform a 64 bit reciprocal multiply, the top 32 bits are the desired result
-						int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);
-						tmp -= rb;
-
-						// rounding errors will sometimes cause tmp to be < range_bottom,
-						// this is rare enough that a conditional is faster than masking.
-						if (tmp < 0)
-							tmp = 0;
-						// Use the hash table to find where to start the linear search.
-						tmp >>= shifter;
-						uint32_t x = range_hash[tmp];
-
-						// The linear search will correct for the error in the hash table
-						// and for reciprocal multiply results less than low/help.
-						while ((range = indexed_ranges[x + 1][0] * help) <= low)
-							x = indexed_ranges[x + 1][1];
-
-						// Update range and low based on decoded value; range has been
-						// set to indexed_ranges[x+1][0]*help in the linear search.
-						range -= help * indexed_ranges[x][0];
-						low -= help * indexed_ranges[x][0];
-						*out++ = x;
-					} else {
-						// A value of 255 is handled here due to range being updated differently and
-						// because low can be greater than prob_ranges[256]*help in certain cases.
-						range -= help * range_top;
-						low -= help * range_top;
-						*out++ = 255;
-					}
-				}
-				// If range has become too small, read in more bytes
-				CheckForRead();
-			} while (out < ending);
-		} else if (level == 3) {
+	if (level == 0) {
+		// This is the simplest verion of the optimized range decoder to understand,
+		// since it does not have the RLE decoder rolled in.
+		do {
 			uint32_t help = range >> shift;
-			if (low < help * range_bottom) {
-				goto Level_3_Zero_Decode;
+			if (low < help * range_bottom) { // Decode a zero value, most common case
+				range  = help * range_bottom;
+				*out++ = 0;
 			} else {
-				goto Level_3_Nonzero_Decode;
+				if (low < range_top * help) { // The value is > 0 and < 255
+					// Perform a reciprocal multiply to get tmp <= low/help.
+					// The value must be <= for the linear search to work.
+					int      shifter = hash_shift;
+					int      rb      = range_bottom;
+					uint32_t s       = help;
+					// If the value is too large for the r_table,
+					// do roughly (low/(help>>x))>>x, where x is how many
+					// places help got shifted to make it fall in the range.
+					while (s >= 2048) {
+						s += 3;   // Round up divisor so result will be <= low/help.
+						s >>= 2;  // Shifting 2 places gave best performance in testing.
+						rb += rb; // Shift up range_bottom so hash_shift can be merged with
+						rb += rb; // the reciprocal correction shift.
+						shifter += 2;
+					}
+					// Perform a 64 bit reciprocal multiply, the top 32 bits are the desired result
+					int tmp = (int)(lag__emulu(low, reciprocal_table[s]) >> 32);
+					tmp -= rb;
+
+					// rounding errors will sometimes cause tmp to be < range_bottom,
+					// this is rare enough that a conditional is faster than masking.
+					if (tmp < 0)
+						tmp = 0;
+					// Use the hash table to find where to start the linear search.
+					tmp >>= shifter;
+					uint32_t x = range_hash[tmp];
+
+					// The linear search will correct for the error in the hash table
+					// and for reciprocal multiply results less than low/help.
+					while ((range = indexed_ranges[x + 1][0] * help) <= low)
+						x = indexed_ranges[x + 1][1];
+
+					// Update range and low based on decoded value; range has been
+					// set to indexed_ranges[x+1][0]*help in the linear search.
+					range -= help * indexed_ranges[x][0];
+					low -= help * indexed_ranges[x][0];
+					*out++ = x;
+				} else {
+					// A value of 255 is handled here due to range being updated differently and
+					// because low can be greater than prob_ranges[256]*help in certain cases.
+					range -= help * range_top;
+					low -= help * range_top;
+					*out++ = 255;
+				}
 			}
-			do {
-			Level_3_Zero_Decode:
+			// If range has become too small, read in more bytes
+			CheckForRead();
+		} while (out < ending);
+	} else if (level == 3) {
+		uint32_t help = range >> shift;
+		if (low < help * range_bottom) {
+			goto Level_3_Zero_Decode;
+		} else {
+			goto Level_3_Nonzero_Decode;
+		}
+		do {
+		Level_3_Zero_Decode:
+			range = help * range_bottom;
+			out++;
+			CheckForRead();
+			help = range >> shift;
+			if (low < help * range_bottom) {
 				range = help * range_bottom;
 				out++;
 				CheckForRead();
@@ -365,110 +369,99 @@ void CompressClass::Decode_And_DeRLE(const uint8_t* in, uint8_t* out, const uint
 					out++;
 					CheckForRead();
 					help = range >> shift;
+
+					// a zero run was reached
 					if (low < help * range_bottom) {
 						range = help * range_bottom;
-						out++;
-						CheckForRead();
-						help = range >> shift;
-
-						// a zero run was reached
-						if (low < help * range_bottom) {
-							range = help * range_bottom;
-						} else {
-							DecodeNonZero(true);
-						}
-						// see if there is another zero run following
-						CheckForRead();
-						help = range >> shift;
-						if (low < help * range_bottom && out < ending) {
-							goto Level_3_Zero_Decode;
-						}
+					} else {
+						DecodeNonZero(true);
+					}
+					// see if there is another zero run following
+					CheckForRead();
+					help = range >> shift;
+					if (low < help * range_bottom && out < ending) {
+						goto Level_3_Zero_Decode;
 					}
 				}
-			Level_3_Nonzero_Decode:
-				if (out >= ending) {
-					break;
-				}
-				DecodeNonZero(false);
-				CheckForRead();
-				help = range >> shift;
+			}
+		Level_3_Nonzero_Decode:
+			if (out >= ending) {
+				break;
+			}
+			DecodeNonZero(false);
+			CheckForRead();
+			help = range >> shift;
+			if (low < help * range_bottom) {
+				goto Level_3_Zero_Decode;
+			}
+			goto Level_3_Nonzero_Decode;
+		} while (true);
+
+
+	} else if (level == 1) {
+		uint32_t help = range >> shift;
+		if (low < help * range_bottom) {
+			goto Level_1_Zero_Decode;
+		} else {
+			goto Level_1_Nonzero_Decode;
+		}
+		do {
+		Level_1_Zero_Decode:
+			range = help * range_bottom;
+			out++;
+			CheckForRead();
+			help = range >> shift;
+			// a zero run was reached
+			if (low < help * range_bottom) {
+				range = help * range_bottom;
+			} else {
+				DecodeNonZero(true);
+			}
+
+			// see if there is another zero run following
+			CheckForRead();
+			help = range >> shift;
+			if (out < ending) {
 				if (low < help * range_bottom) {
-					goto Level_3_Zero_Decode;
+					goto Level_1_Zero_Decode;
 				}
-				goto Level_3_Nonzero_Decode;
-			} while (true);
+			} else {
+				break;
+			}
+		Level_1_Nonzero_Decode:
+			DecodeNonZero(false);
+			CheckForRead();
+			help = range >> shift;
+			if (out < ending) {
+				if (low < help * range_bottom) {
+					goto Level_1_Zero_Decode;
+				}
+				goto Level_1_Nonzero_Decode;
+			} else {
+				break;
+			}
+		} while (true);
 
 
-		} else if (level == 1) {
+	} else if (level == 2) {
+		// less optimized since it is not used in recent builds
+		uint32_t run = 0;
+		do {
+			CheckForRead();
 			uint32_t help = range >> shift;
 			if (low < help * range_bottom) {
-				goto Level_1_Zero_Decode;
-			} else {
-				goto Level_1_Nonzero_Decode;
-			}
-			do {
-			Level_1_Zero_Decode:
 				range = help * range_bottom;
-				out++;
-				CheckForRead();
-				help = range >> shift;
-				// a zero run was reached
-				if (low < help * range_bottom) {
-					range = help * range_bottom;
+				if (run < 2) {
+					out++;
+					run++;
 				} else {
-					DecodeNonZero(true);
-				}
-
-				// see if there is another zero run following
-				CheckForRead();
-				help = range >> shift;
-				if (out < ending) {
-					if (low < help * range_bottom) {
-						goto Level_1_Zero_Decode;
-					}
-				} else {
-					break;
-				}
-			Level_1_Nonzero_Decode:
-				DecodeNonZero(false);
-				CheckForRead();
-				help = range >> shift;
-				if (out < ending) {
-					if (low < help * range_bottom) {
-						goto Level_1_Zero_Decode;
-					}
-					goto Level_1_Nonzero_Decode;
-				} else {
-					break;
-				}
-			} while (true);
-
-
-		} else if (level == 2) {
-			// less optimized since it is not used in recent builds
-			uint32_t run = 0;
-			do {
-				CheckForRead();
-				uint32_t help = range >> shift;
-				if (low < help * range_bottom) {
-					range = help * range_bottom;
-					if (run < 2) {
-						out++;
-						run++;
-					} else {
-						run = 0;
-					}
-				} else {
-					DecodeNonZero(run == 2);
 					run = 0;
 				}
-			} while (out < ending);
-		}
-	} catch (...) {
-		// it may be possible for the last read of the byte sequence to cause a buffer overrun. I haven't
-		// been able to reproduce this but it seems plausible based on some crash reports.
-
-		//MessageBox (HWND_DESKTOP, "Exception caught in Decode_And_DeRLE", "Error", MB_OK | MB_ICONEXCLAMATION);
+			} else {
+				DecodeNonZero(run == 2);
+				run = 0;
+			}
+		} while (out < ending);
 	}
 }
 

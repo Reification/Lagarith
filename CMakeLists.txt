@@ -19,8 +19,6 @@ foreach(BUILD_CONFIG ${CMAKE_CONFIGURATION_TYPES})
 	set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_${BUILD_SUFFIX} ${CMAKE_ARCHIVE_OUTPUT_DIRECTORY})
 endforeach(BUILD_CONFIG)
 
-set(INSTALL_TO_REIFY_OMNIBUS FALSE CACHE BOOL "Set install location for iterative testing with ReifyOminbus project")
-
 set(BUILD_TEST FALSE CACHE BOOL "Build simple manually run test")
 
 set(BUILD_TEST_AS_LIB FALSE)
@@ -49,19 +47,20 @@ if(NOT ("${CMAKE_SIZEOF_VOID_P}" STREQUAL "8"))
 	message(FATAL_ERROR "Only windows and android 64-bit configuraitons supported")
 endif()
 
-#if we have the default install prefix (which we will never use) set to a reasonable test location
-if("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files")
-	if(INSTALL_TO_REIFY_OMNIBUS)
-		if(WIN32)
-			set(_PLAT "win64")
-		elseif(ANDROID)
-			set(_PLAT "android")
-		endif()
-  	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/../ReifyOmnibus/build/${_PLAT}/ext" CACHE STRING "" FORCE)
-	  unset(_PLAT)
-	else()
-	  set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
+set(INSTALL_TO_REIFY_OMNIBUS FALSE CACHE BOOL "Set install location for iterative testing with ReifyOminbus project")
+
+#if we want to iterate on this library in ReifyOmnibus install it to the unpacked 3rd party location for that project
+if(INSTALL_TO_REIFY_OMNIBUS AND (NOT "${CMAKE_INSTALL_PREFIX}" MATCHES "ReifyOmnibus"))
+	if(WIN32)
+		set(_PLAT "win64")
+	elseif(ANDROID)
+		set(_PLAT "android")
 	endif()
+  	set(CMAKE_INSTALL_PREFIX "${CMAKE_SOURCE_DIR}/../ReifyOmnibus/build/${_PLAT}/ext" CACHE STRING "" FORCE)
+	unset(_PLAT)
+#if we have the default install prefix (which we will never use) set to a reasonable test location
+elseif((NOT CMAKE_INSTALL_PREFIX) OR ("${CMAKE_INSTALL_PREFIX}" MATCHES "/Program Files"))
+	set(CMAKE_INSTALL_PREFIX ${CMAKE_BINARY_DIR}/install CACHE STRING "" FORCE)
 endif()
 
 file(GLOB LIB_SRC "${LIB_SRC_DIR}/*.cpp" "${LIB_SRC_DIR}/*.inl")

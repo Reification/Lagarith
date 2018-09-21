@@ -27,14 +27,11 @@ Codec::~Codec() {
 }
 
 void Codec::Reset() {
-	try {
-		if (isCompressing()) {
-			CompressEnd();
-		} else if (isDecompressing()) {
-			DecompressEnd();
-		}
-	} catch (...) {
-	};
+	if (isCompressing()) {
+		CompressEnd();
+	} else if (isDecompressing()) {
+		DecompressEnd();
+	}
 }
 
 bool Codec::SetMultithreaded(bool mt) {
